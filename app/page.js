@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 import Mandala from "../lib/Mandala";
 import RealmAnimation from "../lib/RealmAnimation";
+import { getAudioController } from "../lib/AudioController";
+import { selectQuote, formatQuoteForSpeech } from "../lib/quotes";
 import {
   PERSONAS, ASSESSMENT_CATEGORIES, usernameToPersona, computeProfile,
   ARCHETYPES, TONE_STYLES, REALMS, RECOVERY_STAGES,
@@ -42,11 +44,49 @@ async function fetchVoice(text, voiceId) {
 }
 
 function parseMentorMessage(raw) {
+  if (!raw) return { text: "", speakingText: "", concept: "default", quote: null, author: null };
   const conceptMatch = raw.match(/\[concept:(\w+)\]/);
   const concept = conceptMatch ? conceptMatch[1] : "default";
-  const text = raw.replace(/\[concept:\w+\]/, "").trim();
-  const speakingText = text.replace(/\*([^*]+)\*/g, "$1");
-  return { text, speakingText, concept };
+  const quoteMatch = raw.match(/\[quote\]([\s\S]*?)\[\/quote\]/);
+  const authorMatch = raw.match(/\[author\]([\s\S]*?)\[\/author\]/);
+  const quote = quoteMatch ? quoteMatch[1].trim() : null;
+  const author = authorMatch ? authorMatch[1].trim() : null;
+
+  // The mentor's own bridge — strip all tags
+  let bridge = raw
+    .replace(/\[concept:\w+\]/g, "")
+    .replace(/\[quote\][\s\S]*?\[\/quote\]/g, "")
+    .replace(/\[author\][\s\S]*?\[\/author\]/g, "")
+    .trim();
+
+  // Spoken form: bridge + natural attribution + quote (no markdown asterisks aloud)
+  const bridgeForSpeech = bridge.replace(/\*([^*]+)\*/g, "$1");
+  let speakingText = bridgeForSpeech;
+  if (quote && author) {
+    // Ensure the bridge terminates with a sentence-ending punct mark before
+    // we attach the attribution — keeps speech cadence natural.
+    const bridgePunct = /[.!?]\s*$/.test(bridgeForSpeech) ? bridgeForSpeech : `${bridgeForSpeech}.`;
+    speakingText = `${bridgePunct} As ${author} put it: "${quote}"`;
+  }
+
+  return { text: bridge, speakingText, concept, quote, author };
+}
+
+// Truncate the mentor's bridge to at most 2 sentences. We split on ./?/!
+// followed by a space or end-of-string. Asterisks for emphasis are ignored
+// for the purpose of finding sentence boundaries.
+function truncateToSentences(text, maxSentences = 2) {
+  if (!text) return text;
+  const stripped = text.replace(/\s+/g, " ").trim();
+  // Greedy match of up to N sentences ending with .?! followed by space/EOL
+  const re = /([^.!?]+[.!?]+)(?:\s+|$)/g;
+  const sentences = [];
+  let m;
+  while ((m = re.exec(stripped)) !== null && sentences.length < maxSentences) {
+    sentences.push(m[1].trim());
+  }
+  if (sentences.length === 0) return stripped; // no sentence boundary found
+  return sentences.join(" ");
 }
 
 function AnimatedText({ text, color }) {
@@ -71,6 +111,62 @@ function AnimatedText({ text, color }) {
           <span key={i} className="word" style={{ animationDelay: `${i * 55}ms` }}>{w}</span>
         );
       })}
+    </div>
+  );
+}
+
+// Distinct visual treatment for the quote that follows the mentor's bridge.
+// Renders as italic serif with a subtle gold rule and attribution.
+function QuoteBlock({ quote, author, color }) {
+  if (!quote) return null;
+  return (
+    <div
+      className="animate-fadeUp"
+      style={{
+        marginTop: 12,
+        paddingLeft: 14,
+        borderLeft: `1px solid ${color}40`,
+        position: "relative",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: -6, left: -2,
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "1.6rem",
+          color: color,
+          opacity: 0.45,
+          lineHeight: 1,
+        }}
+      >“</span>
+      <p
+        className="serif"
+        style={{
+          fontStyle: "italic",
+          fontSize: "0.92rem",
+          lineHeight: 1.55,
+          color: "var(--cream)",
+          margin: 0,
+          opacity: 0.95,
+        }}
+      >
+        {quote}
+      </p>
+      <div
+        className="mono"
+        style={{
+          marginTop: 6,
+          fontSize: "8px",
+          letterSpacing: "0.22em",
+          textTransform: "uppercase",
+          color: color,
+          opacity: 0.75,
+        }}
+      >
+        — {author}
+      </div>
     </div>
   );
 }
@@ -134,76 +230,143 @@ export default function BurnoutDemo() {
 
   const [mentorRaw, setMentorRaw] = useState("");
   const [mentorLoading, setMentorLoading] = useState(false);
-  const [audioUrl, setAudioUrl] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [muted, setMuted] = useState(false);
 
   const [shadowEncounterText, setShadowEncounterText] = useState("");
 
-  const audioRef = useRef(null);
+  // Centralized audio — singleton across all screens. See lib/AudioController.
+  const audio = getAudioController();
   const mentorParsed = parseMentorMessage(mentorRaw);
   const stage = getStage(totalPoints);
 
-  const unlockAudio = () => {
-    if (audioUnlocked) return;
-    const audio = audioRef.current;
-    if (audio) {
-      audio.src = "data:audio/mpeg;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADPgBmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmYAAAAATGF2YzYwLjMAAAAAAAAAAAAAAAAkA0AAAAAAAAADPuLxp9QAAAAAAAAAAAAAAAAAAAAA";
-      audio.volume = 0;
-      audio.play().then(() => {
-        audio.volume = 1;
-        setAudioUnlocked(true);
-      }).catch(() => setAudioUnlocked(true));
+  // Wire onEnded once, when controller becomes available.
+  useEffect(() => {
+    if (!audio) return;
+    audio.onEnded(() => setIsPlaying(false));
+  }, [audio]);
+
+  // Cache key builder. The same (archetype, day, kind, ctxKey) tuple should
+  // never trigger Mistral or ElevenLabs twice.
+  const cacheKeyFor = (kind, ctx) => {
+    const arch = archetype?.id || "_";
+    const t = tone || "_";
+    if (kind === "realm_briefing") {
+      return `${arch}|${t}|d${day}|realm_briefing|${(ctx?.realm || orderedRealms[activeRealmIdx])?.id || "_"}`;
     }
+    if (kind === "quest_done") {
+      return `${arch}|${t}|d${day}|quest_done|${ctx?.realm?.id || "_"}|${ctx?.quest?.title || "_"}`;
+    }
+    if (kind === "quest_skipped") {
+      return `${arch}|${t}|d${day}|quest_skipped|${ctx?.realm?.id || "_"}|${ctx?.quest?.title || "_"}`;
+    }
+    if (kind === "shadow_encounter") {
+      return `${arch}|${t}|d${day}|shadow|${(ctx?.namingText || "").slice(0, 80)}`;
+    }
+    if (kind === "aspirational") {
+      return `${arch}|${t}|aspirational`;
+    }
+    return `${arch}|${t}|d${day}|${kind}`;
   };
 
-  useEffect(() => {
-    if (!audioUrl || !audioUnlocked || muted || !audioRef.current) return;
-    audioRef.current.src = audioUrl;
-    audioRef.current.load();
-    audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-  }, [audioUrl, audioUnlocked, muted]);
-
-  // Generic mentor dispatcher
+  // Generic mentor dispatcher — quote-aware, cached, request-versioned.
+  // Flow:
+  //   1. Stop any current audio immediately.
+  //   2. Bump requestId so any in-flight prior request becomes stale.
+  //   3. Compute cache key. Hit → set state + play, no API calls, return.
+  //   4. Pick a deterministic quote (by archetype/tone/kind/realm + ctxKey).
+  //   5. Build the prompt WITH that quote so Mistral writes a bridge to it.
+  //   6. Mistral returns 1-2 sentences. Truncate hard if it overran.
+  //   7. Compose the final mentorRaw with [quote] and [author] tags appended.
+  //   8. Speak the bridge + "As X put it: ..." via ElevenLabs.
+  //   9. Cache the (mentorRaw, audioUrl) pair.
   const generateMentor = async (kind, ctx = {}) => {
     if (!archetype || !persona || !profile) return;
+
+    if (audio) audio.stop();
+    const myReqId = audio ? audio.bumpRequestId() : 0;
+
+    const key = cacheKeyFor(kind, ctx);
+    if (audio && audio.hasCached(key)) {
+      const cached = audio.getCached(key);
+      setMentorRaw(cached.mentorRaw || "");
+      setMentorLoading(false);
+      if (cached.audioUrl && !muted) {
+        await audio.play(cached.audioUrl);
+        setIsPlaying(true);
+      }
+      return;
+    }
+
     setMentorLoading(true);
-    setAudioUrl(null);
     setMentorRaw("");
 
+    // Step 4: pick the quote BEFORE prompting Mistral.
+    const realm = orderedRealms[activeRealmIdx] || REALMS[0];
+    const ctxRealmId = (ctx.realm || realm)?.id || null;
+    const quote = selectQuote({
+      archetype: archetype.id,
+      tone,
+      kind,
+      realmId: ctxRealmId,
+      ctxKey: key,
+    });
+
+    // Step 5: build the system + user prompts. Pass quote into the user prompt.
     const systemPrompt = buildMentorPrompt({
       archetype, tone, userName, persona, profile, recoveryScore, stage, day,
     });
 
     let userPrompt = "";
-    const realm = orderedRealms[activeRealmIdx] || REALMS[0];
-
     if (kind === "realm_briefing") {
-      userPrompt = buildRealmBriefingPrompt(ctx.realm || realm, persona, profile, day);
+      userPrompt = buildRealmBriefingPrompt(ctx.realm || realm, persona, profile, day, quote);
     } else if (kind === "quest_done") {
-      userPrompt = buildQuestDonePrompt(ctx.quest, ctx.realm || realm, persona);
+      userPrompt = buildQuestDonePrompt(ctx.quest, ctx.realm || realm, persona, quote);
     } else if (kind === "quest_skipped") {
-      userPrompt = buildQuestSkipPrompt(ctx.quest, ctx.realm || realm, profile);
+      userPrompt = buildQuestSkipPrompt(ctx.quest, ctx.realm || realm, profile, quote);
     } else if (kind === "shadow_encounter") {
-      userPrompt = buildShadowEncounterPrompt(ctx.namingText, profile, persona);
+      userPrompt = buildShadowEncounterPrompt(ctx.namingText, profile, persona, quote);
     } else if (kind === "aspirational") {
-      userPrompt = buildAspirationalPrompt(userName, persona, profile, archetype);
+      userPrompt = buildAspirationalPrompt(userName, persona, profile, archetype, quote);
     }
 
-    const raw = await fetchMentor(systemPrompt, userPrompt);
-    setMentorRaw(raw);
+    // Step 6: get Mistral's bridge sentences.
+    const mistralRaw = await fetchMentor(systemPrompt, userPrompt);
+    if (audio && audio.isStale(myReqId)) return;
+
+    // Pull out the [concept:xxx] tag, truncate the prose to <=2 sentences,
+    // then re-attach the tag and the quote/author tags.
+    const conceptMatch = mistralRaw.match(/\[concept:(\w+)\]/);
+    const concept = conceptMatch ? conceptMatch[0] : "[concept:default]";
+    let bridge = mistralRaw.replace(/\[concept:\w+\]/g, "").trim();
+    bridge = truncateToSentences(bridge, 2);
+
+    const finalRaw = quote
+      ? `${bridge} ${concept}[quote]${quote.text}[/quote][author]${quote.author}[/author]`
+      : `${bridge} ${concept}`;
+
+    setMentorRaw(finalRaw);
     setMentorLoading(false);
 
-    const { speakingText } = parseMentorMessage(raw);
+    // Step 8: speak via ElevenLabs.
+    let audioUrl = null;
+    const { speakingText } = parseMentorMessage(finalRaw);
     if (archetype?.voiceId && !muted) {
-      const audio = await fetchVoice(speakingText, archetype.voiceId);
-      if (audio) setAudioUrl(audio);
+      audioUrl = await fetchVoice(speakingText, archetype.voiceId);
+      if (audio && audio.isStale(myReqId)) return;
+    }
+
+    if (audio) {
+      audio.setCached(key, { mentorRaw: finalRaw, audioUrl });
+      if (audioUrl && !muted) {
+        await audio.play(audioUrl);
+        setIsPlaying(true);
+      }
     }
   };
 
   const handleLoginSubmit = () => {
-    unlockAudio();
+    if (audio) audio.unlock();
     const p = usernameToPersona(username);
     setPersona(p);
     setUserName(p.defaultName);
@@ -247,11 +410,17 @@ export default function BurnoutDemo() {
   };
 
   const handleGoToAspirational = async () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
+    setMentorRaw("");
     setScreen("aspirational");
     setTimeout(() => generateMentor("aspirational"), 400);
   };
 
   const handleEnterDashboard = async () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
+    setMentorRaw("");
     setScreen("dashboard");
     setTimeout(() => generateMentor("realm_briefing"), 400);
   };
@@ -275,6 +444,8 @@ export default function BurnoutDemo() {
   };
 
   const nextDay = async () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
     setDay(d => d + 1);
     setActiveRealmIdx(r => (r + 1) % orderedRealms.length);
     setCompletedByRealm({}); // reset for new day (simplified — each day is a fresh slate)
@@ -284,15 +455,28 @@ export default function BurnoutDemo() {
 
   const switchRealm = async (idx) => {
     if (idx === activeRealmIdx) return;
+    if (audio) audio.stop();
+    setIsPlaying(false);
     setActiveRealmIdx(idx);
     await generateMentor("realm_briefing", { realm: orderedRealms[idx] });
   };
 
   const openShadowEncounter = () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
     const naming = generateShadowNaming(persona, profile);
     setShadowEncounterText(naming);
     setMentorRaw("");
     setScreen("shadow_encounter");
+  };
+
+  // Always-available back-to-dashboard for the shadow page (Bug #6).
+  const exitShadowEncounter = () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
+    setMentorRaw("");
+    setShadowEncounterText("");
+    setScreen("dashboard");
   };
 
   const submitShadowEncounter = async () => {
@@ -344,7 +528,6 @@ export default function BurnoutDemo() {
           </p>
         </div>
 
-        <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
       </div>
     );
   }
@@ -412,7 +595,6 @@ export default function BurnoutDemo() {
           </div>
         )}
 
-        <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
       </div>
     );
   }
@@ -507,6 +689,7 @@ export default function BurnoutDemo() {
 
   // ─── ARCHETYPE ─────────────────────────────────────────────────────
   if (screen === "archetype") {
+    const isRecSelected = archetype?.id === recommendedArchetype.id;
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         <div className="section-label">Your Recommended Archetype</div>
@@ -515,9 +698,21 @@ export default function BurnoutDemo() {
           Analyzed from your personality, work conditions, and clinical scores.
         </p>
 
-        {/* ONE animation — the mandala of the recommended archetype */}
-        <div style={{ padding: "1.2rem", background: recommendedArchetype.color + "15", border: `1px solid ${recommendedArchetype.color}`, marginBottom: 16, position: "relative" }}>
-          <div className="mono" style={{ position: "absolute", top: -8, right: 12, padding: "2px 10px", background: recommendedArchetype.color, color: "var(--void)", fontSize: "8px", letterSpacing: "0.2em", fontWeight: 700 }}>RECOMMENDED</div>
+        {/* Recommended card — now clickable to re-select after picking another */}
+        <div
+          onClick={() => setArchetype(recommendedArchetype)}
+          style={{
+            cursor: "pointer",
+            padding: "1.2rem",
+            background: recommendedArchetype.color + (isRecSelected ? "25" : "15"),
+            border: `${isRecSelected ? "2px" : "1px"} solid ${recommendedArchetype.color}`,
+            marginBottom: 16,
+            position: "relative",
+            transition: "background 0.2s, border-color 0.2s",
+          }}>
+          <div className="mono" style={{ position: "absolute", top: -8, right: 12, padding: "2px 10px", background: recommendedArchetype.color, color: "var(--void)", fontSize: "8px", letterSpacing: "0.2em", fontWeight: 700 }}>
+            {isRecSelected ? "RECOMMENDED · SELECTED" : "RECOMMENDED"}
+          </div>
 
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
             <Mandala archetypeId={recommendedArchetype.id} color={recommendedArchetype.color} concept="still" size={140} />
@@ -531,7 +726,7 @@ export default function BurnoutDemo() {
 
           <p style={{ fontSize: "0.82rem", color: "var(--mist)", lineHeight: 1.6, marginBottom: 10, textAlign: "center" }}>{recommendedArchetype.desc}</p>
 
-          <div onClick={() => toggleWhy("arch_rec")} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: "0.72rem", color: recommendedArchetype.color, fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+          <div onClick={(e) => { e.stopPropagation(); toggleWhy("arch_rec"); }} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: "0.72rem", color: recommendedArchetype.color, fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
             <span>Why {recommendedArchetype.name} for you</span>
             <span>{expandedWhy.arch_rec ? "−" : "+"}</span>
           </div>
@@ -553,23 +748,28 @@ export default function BurnoutDemo() {
 
         <div className="section-label">Or choose a different guide</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 20 }}>
-          {ARCHETYPES.filter(a => a.id !== recommendedArchetype.id).map(a => (
-            <div key={a.id} onClick={() => setArchetype(a)} style={{
-              padding: "10px", cursor: "pointer",
-              background: archetype?.id === a.id ? a.color + "25" : "var(--slate)",
-              border: `1px solid ${archetype?.id === a.id ? a.color : a.color + "30"}`,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <div style={{ width: 10, height: 10, borderRadius: "50%", background: a.color, boxShadow: `0 0 8px ${a.color}` }} />
-                <div className="serif" style={{ fontSize: "0.9rem", color: "var(--cream)" }}>{a.name}</div>
+          {ARCHETYPES.map(a => {
+            const isSel = archetype?.id === a.id;
+            const isRec = a.id === recommendedArchetype.id;
+            return (
+              <div key={a.id} onClick={() => setArchetype(a)} style={{
+                padding: "10px", cursor: "pointer",
+                background: isSel ? a.color + "25" : "var(--slate)",
+                border: `1px solid ${isSel ? a.color : a.color + "30"}`,
+                position: "relative",
+              }}>
+                {isRec && <div style={{ position: "absolute", top: 4, right: 6, fontSize: "7px", color: a.color, fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em" }}>★</div>}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: a.color, boxShadow: `0 0 8px ${a.color}` }} />
+                  <div className="serif" style={{ fontSize: "0.9rem", color: "var(--cream)" }}>{a.name}</div>
+                </div>
+                <div className="mono" style={{ fontSize: "7px", letterSpacing: "0.15em", color: a.color, textTransform: "uppercase" }}>{a.figure}</div>
               </div>
-              <div className="mono" style={{ fontSize: "7px", letterSpacing: "0.15em", color: a.color, textTransform: "uppercase" }}>{a.figure}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <button className="btn-gold" onClick={handleConfirmArchetype}>CONTINUE WITH {archetype.name.toUpperCase()} →</button>
-        <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
       </div>
     );
   }
@@ -630,7 +830,6 @@ export default function BurnoutDemo() {
           </button>
         )}
 
-        <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
       </div>
     );
   }
@@ -654,12 +853,14 @@ export default function BurnoutDemo() {
               {archetype.name} is contemplating...
             </div>
           ) : (
-            <AnimatedText text={mentorParsed.text} color={archetype.color} />
+            <>
+              <AnimatedText text={mentorParsed.text} color={archetype.color} />
+              <QuoteBlock quote={mentorParsed.quote} author={mentorParsed.author} color={archetype.color} />
+            </>
           )}
         </div>
 
         <button className="btn-gold" onClick={handleEnterDashboard}>BEGIN DAY 1 →</button>
-        <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
       </div>
     );
   }
@@ -709,18 +910,26 @@ export default function BurnoutDemo() {
           <RealmAnimation scene={realm.id} color={realm.color} state={completedCount} size={{ w: 420, h: 340 }} />
         </div>
 
-        {/* Mentor four-beat strategic message */}
-        <div style={{ padding: "1rem 1.2rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, marginBottom: 14, minHeight: 80 }}>
-          <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>
-            {archetype.name} · {archetype.figure}
+        {/* Mentor message — bridge text + quote — with the archetype mandala beside it */}
+        <div style={{ padding: "0.9rem 1rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, marginBottom: 14, minHeight: 80, display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <div style={{ flexShrink: 0, paddingTop: 2 }}>
+            <Mandala archetypeId={archetype.id} color={archetype.color} concept={mentorParsed.concept} size={88} />
           </div>
-          {mentorLoading ? (
-            <div className="serif" style={{ fontSize: "0.9rem", fontStyle: "italic", color: "var(--silver)" }}>
-              {archetype.name} is contemplating...
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>
+              {archetype.name} · {archetype.figure}
             </div>
-          ) : (
-            <AnimatedText text={mentorParsed.text} color={archetype.color} />
-          )}
+            {mentorLoading ? (
+              <div className="serif" style={{ fontSize: "0.9rem", fontStyle: "italic", color: "var(--silver)" }}>
+                {archetype.name} is contemplating...
+              </div>
+            ) : (
+              <>
+                <AnimatedText text={mentorParsed.text} color={archetype.color} />
+                <QuoteBlock quote={mentorParsed.quote} author={mentorParsed.author} color={archetype.color} />
+              </>
+            )}
+          </div>
         </div>
 
         {/* Realm navigation — 5 realms as tabs */}
@@ -857,7 +1066,6 @@ export default function BurnoutDemo() {
           </div>
         )}
 
-        <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
       </div>
     );
   }
@@ -866,7 +1074,13 @@ export default function BurnoutDemo() {
   if (screen === "shadow_encounter") {
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
-        <div className="section-label">Weekly Shadow Encounter</div>
+        {/* Always-available exit — does NOT require offering to leave (Bug #6) */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div className="section-label" style={{ marginBottom: 0 }}>Weekly Shadow Encounter</div>
+          <span onClick={exitShadowEncounter} style={{ cursor: "pointer", padding: "4px 10px", border: "1px solid rgba(255,255,255,0.08)", fontSize: "0.65rem", color: "var(--silver)", fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+            ← Dashboard
+          </span>
+        </div>
         <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 6 }}>
           Your Shadow has grown this week.
         </h2>
@@ -874,7 +1088,7 @@ export default function BurnoutDemo() {
           {profile.shadow.name}. The data has surfaced a pattern. Naming it transfers its energy back to you.
         </p>
 
-        {/* ONE animation — shadow integration physics (figure + shadow rejoining) */}
+        {/* Shadow integration physics animation */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
           <RealmAnimation scene="integration" color={archetype.color} size={{ w: 420, h: 320 }} />
         </div>
@@ -900,21 +1114,35 @@ export default function BurnoutDemo() {
           {mentorRaw ? "INTEGRATED" : mentorLoading ? "LISTENING..." : `OFFER THIS TO ${archetype.name.toUpperCase()} →`}
         </button>
 
-        {mentorRaw && (
-          <>
-            <div className="animate-fadeUp" style={{ marginTop: 18, padding: "1.1rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}` }}>
-              <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 10 }}>
+        {(mentorLoading || mentorRaw) && (
+          <div className="animate-fadeUp" style={{ marginTop: 18, padding: "1rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <div style={{ flexShrink: 0, paddingTop: 2 }}>
+              <Mandala archetypeId={archetype.id} color={archetype.color} concept={mentorParsed.concept || "integration"} size={88} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>
                 {archetype.name} responds
               </div>
-              <AnimatedText text={mentorParsed.text} color={archetype.color} />
+              {mentorLoading ? (
+                <div className="serif" style={{ fontSize: "0.9rem", fontStyle: "italic", color: "var(--silver)" }}>
+                  {archetype.name} is listening...
+                </div>
+              ) : (
+                <>
+                  <AnimatedText text={mentorParsed.text} color={archetype.color} />
+                  <QuoteBlock quote={mentorParsed.quote} author={mentorParsed.author} color={archetype.color} />
+                </>
+              )}
             </div>
-            <button className="btn-ghost" style={{ marginTop: 12, width: "100%" }} onClick={() => { setMentorRaw(""); setShadowEncounterText(""); setScreen("dashboard"); }}>
-              RETURN TO DASHBOARD
-            </button>
-          </>
+          </div>
         )}
 
-        <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
+        {mentorRaw && (
+          <button className="btn-ghost" style={{ marginTop: 12, width: "100%" }} onClick={exitShadowEncounter}>
+            RETURN TO DASHBOARD
+          </button>
+        )}
+
       </div>
     );
   }

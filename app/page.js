@@ -197,6 +197,10 @@ function ShadowIndicator({ recoveryScore, shadowName, onClick }) {
   );
 }
 
+const REALM_VIDEO = {
+  withdrawn: "/scenes/embers.mp4",
+};
+
 export default function BurnoutDemo() {
   const [screen, setScreen] = useState("hero");
 
@@ -971,7 +975,16 @@ export default function BurnoutDemo() {
 
         {/* THE ONE HERO ANIMATION — physics metaphor, state-driven */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, background: "#06060a", border: `1px solid ${realm.color}20` }}>
-          <RealmAnimation scene={realm.id} color={realm.color} state={completedCount} size={{ w: 420, h: 340 }} />
+          {REALM_VIDEO[realm.id] ? (
+            <video
+              key={realm.id}
+              src={REALM_VIDEO[realm.id]}
+              autoPlay loop muted playsInline
+              style={{ width: 420, height: 340, display: "block" }}
+            />
+          ) : (
+            <RealmAnimation scene={realm.id} color={realm.color} state={completedCount} size={{ w: 420, h: 340 }} />
+          )}
         </div>
 
         {/* Mentor message — bridge text + quote — with the archetype mandala beside it */}

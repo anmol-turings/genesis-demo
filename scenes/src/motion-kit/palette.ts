@@ -22,6 +22,10 @@ export const PALETTE = {
   scattered: '#a06ac4',  // purple (Scattered Mind)
   hollow: '#c4884a',     // copper (Hollow Work)
 
+  // Warm ember (used by Embers scene)
+  ember: '#d97a3a',
+  emberCore: '#f0c060',
+
   // Ice / water
   iceWarm: '#e8c97a',
   iceCool: '#9aa8c8',

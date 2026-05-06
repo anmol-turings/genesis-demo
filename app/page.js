@@ -190,11 +190,8 @@ function ShadowIndicator({ recoveryScore, shadowName, onClick }) {
         boxShadow: `0 0 ${6 + opacity * 10}px #8b3a3a`,
       }} />
       <div style={{ flex: 1 }}>
-        <div className="mono" style={{ fontSize: "7px", color: "#c97575", letterSpacing: "0.2em", textTransform: "uppercase" }}>Shadow Present</div>
+        <div className="mono" style={{ fontSize: "7px", color: "#c97575", letterSpacing: "0.2em", textTransform: "uppercase" }}>WHAT IS PULLING</div>
         <div className="serif" style={{ fontSize: "0.78rem", color: "#d4aaaa", fontStyle: "italic" }}>{shadowName}</div>
-      </div>
-      <div className="mono" style={{ fontSize: "7px", color: "#c97575", letterSpacing: "0.15em" }}>
-        {Math.round(opacity * 100)}%
       </div>
     </div>
   );
@@ -528,10 +525,10 @@ export default function BurnoutDemo() {
   if (screen === "hero") {
     return (
       <div className="shell" style={{ display: "flex", flexDirection: "column", justifyContent: "center", minHeight: "100vh", padding: "2.5rem 2rem" }}>
-        <div className="section-label">A Burnout Prevention Program</div>
-        <h1 className="serif" style={{ fontSize: "clamp(42px, 11vw, 66px)", color: "var(--cream)", lineHeight: 0.95, marginBottom: 8 }}>RECOVERY</h1>
+        <div className="section-label">THE RIDE OF YOUR LIFE</div>
+        <h1 className="serif" style={{ fontSize: "clamp(42px, 11vw, 66px)", color: "var(--cream)", lineHeight: 0.95, marginBottom: 8 }}>THE RIDE</h1>
         <p className="serif" style={{ fontSize: "1.05rem", fontStyle: "italic", color: "var(--gold-light)", marginBottom: 28 }}>
-          Before burnout becomes a diagnosis, it becomes a drift.
+          Before the body breaks, it begins to drift.
         </p>
 
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
@@ -539,13 +536,13 @@ export default function BurnoutDemo() {
         </div>
 
         <p style={{ fontSize: "0.85rem", color: "var(--silver)", lineHeight: 1.8, marginBottom: 28 }}>
-          A 90-day recovery journey guided by an archetype — Marcus Aurelius, Marie Curie, Shackleton — grounded in your 42 app clinical data.
+          Ninety days. One mentor — chosen from those who have walked it before. The terrain is read from your 42 app readings. The walk is yours.
         </p>
 
         <div className="gold-rule" />
 
         <div style={{ marginTop: 20 }}>
-          <div className="section-label" style={{ marginBottom: 10 }}>Sign in with your 42 app account</div>
+          <div className="section-label" style={{ marginBottom: 10 }}>ENTER WITH YOUR 42 ACCOUNT</div>
           <input
             className="input"
             placeholder="Your 42 username"
@@ -554,10 +551,10 @@ export default function BurnoutDemo() {
             onKeyDown={e => e.key === "Enter" && username.trim() && handleLoginSubmit()}
           />
           <button className="btn-gold" disabled={!username.trim()} onClick={handleLoginSubmit} style={{ marginTop: 10 }}>
-            CONTINUE →
+            STEP IN →
           </button>
           <p style={{ fontSize: "0.68rem", color: "var(--gold-dim)", marginTop: 10, fontStyle: "italic", textAlign: "center" }}>
-            Demo: assessment data will be simulated based on your username
+            Demo: your readings are simulated based on your username
           </p>
         </div>
 
@@ -645,9 +642,9 @@ export default function BurnoutDemo() {
   if (screen === "profile") {
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
-        <div className="section-label">Your Burnout Risk Profile</div>
-        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>The data speaks, {userName}.</h2>
-        <p style={{ fontSize: "0.78rem", color: "var(--silver)", marginBottom: 18 }}>Profession: {persona.context}</p>
+        <div className="section-label">WHAT WE READ OF YOU</div>
+        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>We have read your terrain, {userName}.</h2>
+        <p style={{ fontSize: "0.78rem", color: "var(--silver)", marginBottom: 18 }}>{persona.context}</p>
 
         {/* ONE animation per page — Iceberg reveals the Shadow */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
@@ -664,7 +661,7 @@ export default function BurnoutDemo() {
         {/* Shadow name — big, serif, beneath the animation */}
         <div style={{ padding: "1rem 1.2rem", background: "var(--deep)", borderLeft: "2px solid var(--shadow-red)", marginBottom: 16 }}>
           <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: "#c97575", textTransform: "uppercase", marginBottom: 4 }}>
-            Your Shadow
+            WHAT HAS BEEN PULLING ON YOU
           </div>
           <h3 className="serif" style={{ fontSize: "1.7rem", color: "var(--cream)", marginBottom: 6 }}>{profile.shadow.name}</h3>
           <p className="serif" style={{ fontSize: "0.95rem", fontStyle: "italic", color: "var(--gold-light)", marginBottom: 12, lineHeight: 1.6 }}>
@@ -672,7 +669,7 @@ export default function BurnoutDemo() {
           </p>
 
           <div onClick={() => toggleWhy("shadow")} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: "0.72rem", color: "var(--gold)", fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-            <span>Why this Shadow</span>
+            <span>WHY THIS NAME</span>
             <span>{expandedWhy.shadow ? "−" : "+"}</span>
           </div>
 
@@ -680,11 +677,7 @@ export default function BurnoutDemo() {
             <div className="animate-fadeUp" style={{ marginTop: 6 }}>
               {profile.shadow.why.map((w, i) => (
                 <div key={i} className="why-card">
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                    <span style={{ fontSize: "0.72rem", color: "var(--mist)" }}>{w.metric}</span>
-                    <span className="mono" style={{ fontSize: "0.72rem", color: "var(--gold)" }}>{w.score}</span>
-                  </div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--silver)", fontStyle: "italic" }}>{w.note}</div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--silver)", fontStyle: "italic", lineHeight: 1.5 }}>· {w.note}</div>
                 </div>
               ))}
               <div style={{ marginTop: 8, padding: "10px 14px", background: "rgba(139,58,58,0.1)", borderLeft: "2px solid var(--shadow-red)", fontSize: "0.78rem", fontStyle: "italic", color: "var(--mist)", lineHeight: 1.6 }}>
@@ -723,7 +716,7 @@ export default function BurnoutDemo() {
           </div>
         )}
 
-        <button className="btn-gold" onClick={handleGoToArchetype}>MEET YOUR GUIDE →</button>
+        <button className="btn-gold" onClick={handleGoToArchetype}>MEET WHO WALKS WITH YOU →</button>
       </div>
     );
   }
@@ -733,10 +726,10 @@ export default function BurnoutDemo() {
     const isRecSelected = archetype?.id === recommendedArchetype.id;
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
-        <div className="section-label">Your Recommended Archetype</div>
-        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>Based on your profile...</h2>
+        <div className="section-label">WHO SHOWS UP FOR YOU</div>
+        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>These are the ones who walk with people like you.</h2>
         <p style={{ fontSize: "0.8rem", color: "var(--silver)", marginBottom: 18 }}>
-          Analyzed from your personality, work conditions, and clinical scores.
+          Drawn from what we read of you — temperament, terrain, the work you do.
         </p>
 
         {/* Recommended card — now clickable to re-select after picking another */}
@@ -752,7 +745,7 @@ export default function BurnoutDemo() {
             transition: "background 0.2s, border-color 0.2s",
           }}>
           <div className="mono" style={{ position: "absolute", top: -8, right: 12, padding: "2px 10px", background: recommendedArchetype.color, color: "var(--void)", fontSize: "8px", letterSpacing: "0.2em", fontWeight: 700 }}>
-            {isRecSelected ? "RECOMMENDED · SELECTED" : "RECOMMENDED"}
+            {isRecSelected ? "FIRST CHOICE · CHOSEN" : "FIRST CHOICE"}
           </div>
 
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
@@ -768,7 +761,7 @@ export default function BurnoutDemo() {
           <p style={{ fontSize: "0.82rem", color: "var(--mist)", lineHeight: 1.6, marginBottom: 10, textAlign: "center" }}>{recommendedArchetype.desc}</p>
 
           <div onClick={(e) => { e.stopPropagation(); toggleWhy("arch_rec"); }} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: "0.72rem", color: recommendedArchetype.color, fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-            <span>Why {recommendedArchetype.name} for you</span>
+            <span>WHY {recommendedArchetype.name.toUpperCase()} COMES TO YOU</span>
             <span>{expandedWhy.arch_rec ? "−" : "+"}</span>
           </div>
 
@@ -776,18 +769,14 @@ export default function BurnoutDemo() {
             <div className="animate-fadeUp" style={{ marginTop: 8 }}>
               {archetypeReasons.map((r, i) => (
                 <div key={i} className="why-card">
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                    <span style={{ fontSize: "0.72rem", color: "var(--mist)" }}>{r.metric}</span>
-                    <span className="mono" style={{ fontSize: "0.72rem", color: recommendedArchetype.color }}>{r.value}</span>
-                  </div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--silver)", fontStyle: "italic" }}>{r.note}</div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--silver)", fontStyle: "italic", lineHeight: 1.5 }}>· {r.note}</div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div className="section-label">Or choose a different guide</div>
+        <div className="section-label">OR CHOOSE A DIFFERENT WALKER</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 20 }}>
           {ARCHETYPES.map(a => {
             const isSel = archetype?.id === a.id;
@@ -810,7 +799,7 @@ export default function BurnoutDemo() {
           })}
         </div>
 
-        <button className="btn-gold" onClick={handleConfirmArchetype}>CONTINUE WITH {archetype.name.toUpperCase()} →</button>
+        <button className="btn-gold" onClick={handleConfirmArchetype}>WALK WITH {archetype.name.toUpperCase()} →</button>
       </div>
     );
   }
@@ -821,7 +810,7 @@ export default function BurnoutDemo() {
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         <div className="section-label">How should {archetype.name} speak?</div>
         <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>Choose Your Voice</h2>
-        <p style={{ fontSize: "0.8rem", color: "var(--silver)", marginBottom: 18 }}>Same wisdom, different delivery.</p>
+        <p style={{ fontSize: "0.8rem", color: "var(--silver)", marginBottom: 18 }}>Same archetype. Three registers.</p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {TONE_STYLES.map(t => {
@@ -833,7 +822,7 @@ export default function BurnoutDemo() {
                 border: tone === t.id ? "1px solid var(--gold)" : "1px solid rgba(255,255,255,0.06)",
                 cursor: "pointer", position: "relative",
               }}>
-                {isRec && <div className="mono" style={{ position: "absolute", top: -8, right: 10, padding: "2px 8px", background: "var(--gold)", color: "var(--void)", fontSize: "7px", letterSpacing: "0.2em", fontWeight: 700 }}>RECOMMENDED</div>}
+                {isRec && <div className="mono" style={{ position: "absolute", top: -8, right: 10, padding: "2px 8px", background: "var(--gold)", color: "var(--void)", fontSize: "7px", letterSpacing: "0.2em", fontWeight: 700 }}>BEST FIT</div>}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                   <span className="serif" style={{ fontSize: "1.2rem", color: tone === t.id ? "var(--gold)" : "var(--silver)" }}>{t.icon}</span>
                   <span className="mono" style={{ fontSize: "10px", letterSpacing: "0.15em", color: tone === t.id ? "var(--gold)" : "var(--mist)", textTransform: "uppercase" }}>{t.label}</span>
@@ -844,18 +833,14 @@ export default function BurnoutDemo() {
                 </div>
                 {isRec && (
                   <div onClick={(e) => { e.stopPropagation(); toggleWhy("tone"); }} style={{ cursor: "pointer", marginTop: 8, padding: "4px 0", fontSize: "0.68rem", color: "var(--gold)", fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                    {expandedWhy.tone ? "− hide reasoning" : "+ why this tone for you"}
+                    {expandedWhy.tone ? "− hide reasoning" : "+ WHY THIS REGISTER FOR YOU"}
                   </div>
                 )}
                 {isRec && expandedWhy.tone && (
                   <div className="animate-fadeUp">
                     {toneReasons.map((r, i) => (
                       <div key={i} className="why-card">
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                          <span style={{ fontSize: "0.72rem", color: "var(--mist)" }}>{r.metric}</span>
-                          <span className="mono" style={{ fontSize: "0.72rem", color: "var(--gold)" }}>{r.value}</span>
-                        </div>
-                        <div style={{ fontSize: "0.72rem", color: "var(--silver)", fontStyle: "italic" }}>{r.note}</div>
+                        <div style={{ fontSize: "0.78rem", color: "var(--silver)", fontStyle: "italic", lineHeight: 1.5 }}>· {r.note}</div>
                       </div>
                     ))}
                   </div>
@@ -867,7 +852,7 @@ export default function BurnoutDemo() {
 
         {tone && (
           <button className="btn-gold" style={{ marginTop: 16 }} onClick={handleGoToAspirational}>
-            SEE YOUR ASPIRATIONAL SELF →
+            MEET WHAT YOU COULD BECOME →
           </button>
         )}
 
@@ -910,7 +895,7 @@ export default function BurnoutDemo() {
           </div>
         )}
 
-        <button className="btn-gold" onClick={handleEnterDashboard}>BEGIN DAY 1 →</button>
+        <button className="btn-gold" onClick={handleEnterDashboard}>BEGIN →</button>
       </div>
     );
   }
@@ -934,7 +919,7 @@ export default function BurnoutDemo() {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div>
-            <h2 className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)" }}>Recovery</h2>
+            <h2 className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)" }}>The Ride</h2>
           </div>
           <div style={{ textAlign: "right" }}>
             <div className="mono" style={{ fontSize: "8px", color: stage.color, letterSpacing: "0.15em", textTransform: "uppercase" }}>{passagePhrase(stage, day)}</div>
@@ -954,11 +939,11 @@ export default function BurnoutDemo() {
         <div style={{ marginBottom: 10, padding: "0.8rem 1rem", background: realm.color + "10", border: `1px solid ${realm.color}40` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: realm.color, textTransform: "uppercase" }}>Today's Realm</div>
+              <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: realm.color, textTransform: "uppercase" }}>TODAY'S TERRAIN</div>
               <div className="serif" style={{ fontSize: "1.2rem", color: "var(--cream)" }}>{realm.icon} {realm.name}</div>
               <div style={{ fontSize: "0.72rem", color: realm.color, marginTop: 1 }}>{realm.sub}</div>
             </div>
-            {isTopPriority && <div className="mono" style={{ fontSize: "7px", padding: "2px 8px", background: "var(--gold)", color: "var(--void)", letterSpacing: "0.15em", fontWeight: 700 }}>PRIORITY</div>}
+            {isTopPriority && <div className="mono" style={{ fontSize: "7px", padding: "2px 8px", background: "var(--gold)", color: "var(--void)", letterSpacing: "0.15em", fontWeight: 700 }}>BEGIN HERE</div>}
           </div>
         </div>
 
@@ -1022,7 +1007,6 @@ export default function BurnoutDemo() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ display: "flex", gap: 10 }}>
                     <span className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)" }}>⏱ {quest.time}m</span>
-                    <span className="mono" style={{ fontSize: "8px", color: realm.color }}>+{quest.points}</span>
                   </div>
                   {!done && (
                     <div style={{ display: "flex", gap: 4 }}>
@@ -1041,8 +1025,8 @@ export default function BurnoutDemo() {
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <button className="btn-gold" onClick={nextDay} style={{ flex: 1 }}>NEXT DAY →</button>
-          <button className="btn-ghost" onClick={openShadowEncounter} style={{ flex: 1 }}>SHADOW ENCOUNTER</button>
+          <button className="btn-gold" onClick={nextDay} style={{ flex: 1 }}>RIDE ON →</button>
+          <button className="btn-ghost" onClick={openShadowEncounter} style={{ flex: 1 }}>FACE THE SHADOW</button>
         </div>
 
         {/* Compressed score + progression */}
@@ -1091,9 +1075,6 @@ export default function BurnoutDemo() {
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                 <div>
-                  <div className="mono" style={{ fontSize: "7px", letterSpacing: "0.2em", color: RECOVERY_STAGES[expandedStage].color, textTransform: "uppercase" }}>
-                    Stage {RECOVERY_STAGES[expandedStage].level}
-                  </div>
                   <div className="serif" style={{ fontSize: "1rem", color: "var(--cream)" }}>{RECOVERY_STAGES[expandedStage].title}</div>
                 </div>
                 <span onClick={(e) => { e.stopPropagation(); setExpandedStage(null); }} style={{ cursor: "pointer", color: "var(--silver)", fontSize: "0.8rem" }}>✕</span>
@@ -1116,8 +1097,7 @@ export default function BurnoutDemo() {
             <div className="section-label">Chronicle</div>
             {history.slice(-5).reverse().map((h, i) => (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.03)", fontSize: "0.7rem" }}>
-                <span style={{ color: "var(--silver)" }}>D{h.day} {h.status === "done" ? "◈" : h.status === "integrated" ? "✦" : "○"} {h.quest.slice(0, 36)}...</span>
-                <span style={{ color: h.points > 0 ? "var(--gold)" : "#DC2626", fontFamily: "'Space Mono', monospace", fontSize: "9px" }}>{h.points > 0 ? "+" : ""}{h.points}</span>
+                <span style={{ color: "var(--silver)" }}>{h.status === "done" ? "◈" : h.status === "integrated" ? "✦" : "○"} {h.quest.slice(0, 40)}</span>
               </div>
             ))}
           </div>
@@ -1133,13 +1113,13 @@ export default function BurnoutDemo() {
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         {/* Always-available exit — does NOT require offering to leave (Bug #6) */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div className="section-label" style={{ marginBottom: 0 }}>Weekly Shadow Encounter</div>
+          <div className="section-label" style={{ marginBottom: 0 }}>MEET THE SHADOW</div>
           <span onClick={exitShadowEncounter} style={{ cursor: "pointer", padding: "4px 10px", border: "1px solid rgba(255,255,255,0.08)", fontSize: "0.65rem", color: "var(--silver)", fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-            ← Dashboard
+            ← BACK TO THE TRAIL
           </span>
         </div>
         <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 6 }}>
-          Your Shadow has grown this week.
+          The Shadow has grown.
         </h2>
         <p className="serif" style={{ color: "var(--silver)", fontSize: "0.85rem", fontStyle: "italic", marginBottom: 14, lineHeight: 1.6 }}>
           {profile.shadow.name} has been with you a long time. To see it now is to begin the bargain.
@@ -1151,7 +1131,7 @@ export default function BurnoutDemo() {
         </div>
 
         <div className="mono" style={{ fontSize: "9px", letterSpacing: "0.2em", color: "var(--gold-dim)", textTransform: "uppercase", marginBottom: 8 }}>
-          Your Shadow is asking you to see:
+          WHAT THE SHADOW IS ASKING:
         </div>
 
         <div style={{ padding: "1rem", background: "var(--deep)", border: `1px solid ${archetype.color}30`, marginBottom: 14 }}>
@@ -1177,7 +1157,7 @@ export default function BurnoutDemo() {
           onClick={submitShadowEncounter}
           disabled={mentorLoading || mentorRaw}
         >
-          {mentorRaw ? "INTEGRATED" : mentorLoading ? "LISTENING..." : `OFFER THIS TO ${archetype.name.toUpperCase()} →`}
+          {mentorRaw ? "RECEIVED" : mentorLoading ? `${archetype.name} listens...` : `OFFER IT TO ${archetype.name.toUpperCase()} →`}
         </button>
 
         {(mentorLoading || mentorRaw) && (
@@ -1187,7 +1167,7 @@ export default function BurnoutDemo() {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>
-                {archetype.name} responds
+                {archetype.name} answers
               </div>
               {mentorLoading ? (
                 <div className="serif" style={{ fontSize: "0.9rem", fontStyle: "italic", color: "var(--silver)" }}>
@@ -1205,7 +1185,7 @@ export default function BurnoutDemo() {
 
         {mentorRaw && (
           <button className="btn-ghost" style={{ marginTop: 12, width: "100%" }} onClick={exitShadowEncounter}>
-            RETURN TO DASHBOARD
+            BACK TO THE TRAIL
           </button>
         )}
 

@@ -256,7 +256,7 @@ const Captions: React.FC = () => {
 };
 
 // ─── MAIN ───────────────────────────────────────────────────────────────
-export const Iceberg: React.FC = () => {
+export const Iceberg: React.FC<{showLabels?: boolean}> = ({showLabels = true}) => {
   const frame = useCurrentFrame();
   const {height} = useVideoConfig();
 
@@ -290,7 +290,7 @@ export const Iceberg: React.FC = () => {
       <Godrays cameraY={cameraY} surfaceY={surfaceY} />
       <IcebergMass cameraY={cameraY} surfaceY={surfaceY} />
       <WaterSurface cameraY={cameraY} surfaceY={surfaceY} />
-      <DimensionLabels surfaceY={surfaceY} />
+      {showLabels && <DimensionLabels surfaceY={surfaceY} />}
       <Captions />
     </SceneShell>
   );

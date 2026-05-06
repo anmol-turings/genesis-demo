@@ -6,7 +6,8 @@
   "scripts": {
     "studio": "remotion studio src/index.tsx",
     "render-iceberg": "remotion render src/index.tsx Iceberg ../public/scenes/iceberg.mp4 --concurrency=2 --browser-executable=$CHROME",
-    "render-all": "npm run render-iceberg"
+    "render-iceberg-bare": "remotion render src/index.tsx IcebergBare ../public/scenes/iceberg-bare.mp4 --concurrency=2 --browser-executable=$CHROME",
+    "render-all": "npm run render-iceberg && npm run render-iceberg-bare"
   },
   "dependencies": {
     "react": "^18.3.1",

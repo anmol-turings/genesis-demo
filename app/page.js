@@ -11,6 +11,7 @@ import {
   orderedRealmsByPriority, generateShadowNaming,
   buildRealmBriefingPrompt, buildQuestDonePrompt, buildQuestSkipPrompt,
   buildShadowEncounterPrompt, buildAspirationalPrompt,
+  passagePhrase, recoveryBandPhrase,
 } from "../lib/constants";
 
 async function fetchMentor(systemPrompt, userPrompt) {
@@ -234,6 +235,9 @@ export default function BurnoutDemo() {
   const [muted, setMuted] = useState(false);
 
   const [shadowEncounterText, setShadowEncounterText] = useState("");
+  const [quoteHistory, setQuoteHistory] = useState({});
+  const [returnTier, setReturnTier] = useState(null);
+  const [returnDismissed, setReturnDismissed] = useState(false);
 
   // Centralized audio — singleton across all screens. See lib/AudioController.
   const audio = getAudioController();
@@ -312,6 +316,15 @@ export default function BurnoutDemo() {
       ctxKey: key,
     });
 
+    const authorSlug = quote?.author ? quote.author.toLowerCase().replace(/[^a-z]/g,"") : "";
+    const priorCount = authorSlug ? (quoteHistory[authorSlug] || 0) : 0;
+    const ackPrefix = (authorSlug && priorCount === 2 && archetype?.returningQuoteAck)
+      ? archetype.returningQuoteAck.replace(/\{author\}/gi, quote.author)
+      : "";
+    if (authorSlug) {
+      setQuoteHistory(h => ({ ...h, [authorSlug]: (h[authorSlug] || 0) + 1 }));
+    }
+
     // Step 5: build the system + user prompts. Pass quote into the user prompt.
     const systemPrompt = buildMentorPrompt({
       archetype, tone, userName, persona, profile, recoveryScore, stage, day,
@@ -341,16 +354,22 @@ export default function BurnoutDemo() {
     let bridge = mistralRaw.replace(/\[concept:\w+\]/g, "").trim();
     bridge = truncateToSentences(bridge, 2);
 
+    const bridgeWithAck = ackPrefix ? `${ackPrefix} ${bridge}` : bridge;
     const finalRaw = quote
-      ? `${bridge} ${concept}[quote]${quote.text}[/quote][author]${quote.author}[/author]`
-      : `${bridge} ${concept}`;
+      ? `${bridgeWithAck} ${concept}[quote]${quote.text}[/quote][author]${quote.author}[/author]`
+      : `${bridgeWithAck} ${concept}`;
 
     setMentorRaw(finalRaw);
     setMentorLoading(false);
 
     // Step 8: speak via ElevenLabs.
     let audioUrl = null;
-    const { speakingText } = parseMentorMessage(finalRaw);
+    let { speakingText } = parseMentorMessage(finalRaw);
+    if (kind === "aspirational" && archetype?.promise) {
+      const promiseSpoken = archetype.promise.replace(/\*([^*]+)\*/g, "$1");
+      const punct = /[.!?]\s*$/.test(speakingText) ? speakingText : `${speakingText}.`;
+      speakingText = `${punct} ${promiseSpoken}`;
+    }
     if (archetype?.voiceId && !muted) {
       audioUrl = await fetchVoice(speakingText, archetype.voiceId);
       if (audio && audio.isStale(myReqId)) return;
@@ -374,6 +393,20 @@ export default function BurnoutDemo() {
     setProfile(computed);
     setRecoveryScore(computed.recoveryScore);
     setOrderedRealms(orderedRealmsByPriority(computed.realmPriorities));
+
+    // Return mechanic — diff lastVisit from localStorage
+    if (typeof window !== "undefined") {
+      const key = `bd_lastVisit_${username.toLowerCase().trim()}`;
+      const stored = window.localStorage.getItem(key);
+      if (stored) {
+        const today = new Date();
+        const last = new Date(stored);
+        const days = Math.floor((today - last) / 86400000);
+        if (days >= 2) setReturnTier(days <= 4 ? "soft" : days <= 14 ? "medium" : "long");
+      }
+      window.localStorage.setItem(key, new Date().toISOString().slice(0,10));
+    }
+
     setScreen("loading");
     setLoadedCategories(0);
     setLoadingCategoryIdx(0);
@@ -601,14 +634,6 @@ export default function BurnoutDemo() {
 
   // ─── PROFILE + SHADOW REVEAL (iceberg animation) ───────────────────
   if (screen === "profile") {
-    const shadowLabels = [
-      { name: "exhaustion", value: persona.bat.exhaustion.toFixed(1) },
-      { name: "sleep_drift", value: persona.lifestyle.sleep.toFixed(1) },
-      { name: "alexithymia", value: persona.alexithymia.toFixed(1) },
-      { name: "work_pressure", value: persona.work_conditions.pressure.toFixed(1) },
-      { name: "loneliness", value: persona.cognitive_health.loneliness.toFixed(1) },
-    ];
-
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         <div className="section-label">Your Burnout Risk Profile</div>
@@ -617,7 +642,14 @@ export default function BurnoutDemo() {
 
         {/* ONE animation per page — Iceberg reveals the Shadow */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-          <RealmAnimation scene="iceberg" color="#c9a84c" size={{ w: 420, h: 340 }} extra={{ shadowLabels }} />
+          <video
+            src="/scenes/iceberg.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{ width: 420, height: 340, maxWidth: "100%", display: "block", background: "#06060a" }}
+          />
         </div>
 
         {/* Shadow name — big, serif, beneath the animation */}
@@ -655,7 +687,7 @@ export default function BurnoutDemo() {
 
         {/* Collapsed score summary */}
         <div onClick={() => toggleWhy("scores")} style={{ cursor: "pointer", padding: "8px 12px", background: "var(--slate)", border: "1px solid rgba(255,255,255,0.04)", marginBottom: 14, display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--silver)" }}>
-          <span>BAT Composite <span className="mono" style={{ color: "var(--gold)" }}>{profile.batComposite}</span> · Risk <span style={{ color: "var(--gold-light)" }}>{profile.risk}</span></span>
+          <span style={{ fontStyle: "italic", color: "var(--silver)" }}>see the data</span>
           <span>{expandedWhy.scores ? "−" : "+ scores"}</span>
         </div>
 
@@ -860,6 +892,15 @@ export default function BurnoutDemo() {
           )}
         </div>
 
+        {!mentorLoading && mentorRaw && archetype?.promise && (
+          <div className="animate-fadeUp" style={{ padding: "1.2rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, marginBottom: 16 }}>
+            <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>
+              The Promise
+            </div>
+            <AnimatedText text={archetype.promise} color={archetype.color} />
+          </div>
+        )}
+
         <button className="btn-gold" onClick={handleEnterDashboard}>BEGIN DAY 1 →</button>
       </div>
     );
@@ -873,14 +914,21 @@ export default function BurnoutDemo() {
 
     return (
       <div className="shell" style={{ padding: "1.2rem 1.4rem 2rem" }}>
+        {returnTier && archetype?.returnCopy && !returnDismissed && (
+          <div style={{ padding: "0.8rem 1rem", background: archetype.color + "10", borderLeft: `2px solid ${archetype.color}`, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div className="serif" style={{ fontSize: "0.85rem", fontStyle: "italic", color: "var(--cream)", flex: 1, lineHeight: 1.5 }}>
+              <AnimatedText text={archetype.returnCopy[returnTier]} color={archetype.color} />
+            </div>
+            <span onClick={() => setReturnDismissed(true)} style={{ cursor: "pointer", color: "var(--silver)", fontSize: "0.8rem", padding: "0 4px", lineHeight: 1 }}>✕</span>
+          </div>
+        )}
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div>
-            <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: "var(--gold-dim)", textTransform: "uppercase" }}>Day {day} of 90</div>
             <h2 className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)" }}>Recovery</h2>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div className="mono" style={{ fontSize: "8px", color: stage.color, letterSpacing: "0.15em", textTransform: "uppercase" }}>{stage.title}</div>
+            <div className="mono" style={{ fontSize: "8px", color: stage.color, letterSpacing: "0.15em", textTransform: "uppercase" }}>{passagePhrase(stage, day)}</div>
             <div className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)" }}>{archetype.name}</div>
           </div>
         </div>
@@ -991,8 +1039,8 @@ export default function BurnoutDemo() {
         {/* Compressed score + progression */}
         <div style={{ padding: "0.7rem 1rem", border: "1px solid var(--gold-dim)", background: "var(--deep)", marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: "var(--gold-dim)", textTransform: "uppercase" }}>Recovery Score</div>
-            <div className="serif" style={{ fontSize: "1.3rem", color: archetype.color }}>{recoveryScore}</div>
+            <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: "var(--gold-dim)", textTransform: "uppercase" }}>Where you are</div>
+            <div className="serif" style={{ fontSize: "0.95rem", color: archetype.color, fontStyle: "italic" }}>{recoveryBandPhrase(recoveryScore)}</div>
           </div>
           <div style={{ position: "relative" }}>
             <div style={{ position: "absolute", top: 8, left: 4, right: 4, height: 2, background: "var(--charcoal)" }} />
@@ -1084,8 +1132,8 @@ export default function BurnoutDemo() {
         <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 6 }}>
           Your Shadow has grown this week.
         </h2>
-        <p style={{ color: "var(--silver)", fontSize: "0.8rem", marginBottom: 14 }}>
-          {profile.shadow.name}. The data has surfaced a pattern. Naming it transfers its energy back to you.
+        <p className="serif" style={{ color: "var(--silver)", fontSize: "0.85rem", fontStyle: "italic", marginBottom: 14, lineHeight: 1.6 }}>
+          {profile.shadow.name} has been with you a long time. To see it now is to begin the bargain.
         </p>
 
         {/* Shadow integration physics animation */}
@@ -1102,8 +1150,17 @@ export default function BurnoutDemo() {
             "{shadowEncounterText}"
           </p>
           <div className="mono" style={{ fontSize: "7px", color: "var(--gold-dim)", letterSpacing: "0.2em", marginTop: 8, textTransform: "uppercase" }}>
-            Auto-generated from your drift patterns
+            Drawn from what you have been carrying
           </div>
+        </div>
+
+        <div style={{ padding: "1rem", background: "rgba(139,58,58,0.06)", borderLeft: "2px solid var(--shadow-red)", marginBottom: 14 }}>
+          <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: "#c97575", textTransform: "uppercase", marginBottom: 6 }}>
+            The Shadow's Origin
+          </div>
+          <p className="serif" style={{ fontSize: "0.92rem", fontStyle: "italic", color: "var(--cream)", lineHeight: 1.7 }}>
+            {profile.shadow.mythicNaming}
+          </p>
         </div>
 
         <button

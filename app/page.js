@@ -569,10 +569,10 @@ export default function BurnoutDemo() {
   if (screen === "loading") {
     return (
       <div className="shell" style={{ padding: "2.5rem 1.5rem" }}>
-        <div className="section-label">Syncing from 42 app</div>
-        <h2 className="serif" style={{ fontSize: "1.5rem", color: "var(--cream)", marginBottom: 4 }}>Welcome back, {userName}.</h2>
+        <div className="section-label">Reading what you have been carrying</div>
+        <h2 className="serif" style={{ fontSize: "1.5rem", color: "var(--cream)", marginBottom: 4 }}>{userName}.</h2>
         <p style={{ fontSize: "0.82rem", color: "var(--silver)", marginBottom: 22 }}>
-          Loading your clinical assessment profile from the 42 app...
+          Drawing what we know of you. A few moments.
         </p>
 
         {ASSESSMENT_CATEGORIES.map((c, i) => {
@@ -582,14 +582,23 @@ export default function BurnoutDemo() {
 
           let finding = "";
           if (done && persona) {
-            if (c.key === "bat") finding = `Composite: ${profile.batComposite} · ${profile.risk} risk`;
-            else if (c.key === "cognitive_health") finding = `Loneliness: ${persona.cognitive_health.loneliness.toFixed(1)} · Anxiety: ${persona.cognitive_health.anxiety.toFixed(1)}`;
-            else if (c.key === "metabolic_risk") finding = `${persona.metabolic_risk.toFixed(1)}/5 · ${persona.metabolic_risk >= 3.5 ? "Elevated" : persona.metabolic_risk >= 2.5 ? "Moderate" : "Low"}`;
-            else if (c.key === "lifestyle") finding = `Sleep: ${persona.lifestyle.sleep.toFixed(1)} · Sedentary: ${persona.lifestyle.sedentary.toFixed(1)}`;
-            else if (c.key === "alexithymia") finding = `${persona.alexithymia.toFixed(1)}/5 · ${persona.alexithymia >= 3.8 ? "High" : "Moderate"}`;
-            else if (c.key === "self_efficacy") finding = `General: ${persona.self_efficacy.toFixed(1)}/5`;
-            else if (c.key === "personality") finding = `Conscientious: ${persona.personality.conscientiousness.toFixed(1)}`;
-            else if (c.key === "work_conditions") finding = `Pressure: ${persona.work_conditions.pressure.toFixed(1)} · Meaning: ${persona.work_conditions.meaning.toFixed(1)}`;
+            if (c.key === "bat") {
+              const ex = persona.bat.exhaustion, md = persona.bat.mental_distance, cg = persona.bat.cognitive, em = persona.bat.emotional;
+              if (ex >= 4.0) finding = "the body is signaling deep fatigue";
+              else if (md >= 4.0) finding = "distance is hardening into armor";
+              else if (cg >= 4.0) finding = "the mind is fragmenting under load";
+              else if (em >= 4.0) finding = "the heart is showing strain";
+              else finding = "patterns are surfacing";
+            }
+            else if (c.key === "cognitive_health") {
+              finding = persona.cognitive_health.loneliness >= 3.8 ? "the alone shows" : persona.cognitive_health.anxiety >= 3.8 ? "the racing shows" : "the holding is uneven";
+            }
+            else if (c.key === "metabolic_risk") finding = persona.metabolic_risk >= 3.5 ? "the form runs warm" : persona.metabolic_risk >= 2.5 ? "the form runs steady" : "the form runs cool";
+            else if (c.key === "lifestyle") finding = persona.lifestyle.sleep >= 4.0 ? "sleep is thinner than it knows" : "the rhythms are uneven";
+            else if (c.key === "alexithymia") finding = persona.alexithymia >= 3.8 ? "the translation has gone quiet" : "the translation is uneven";
+            else if (c.key === "self_efficacy") finding = persona.self_efficacy >= 3.5 ? "agency is intact" : "agency is thinning";
+            else if (c.key === "personality") finding = "the shape is steady";
+            else if (c.key === "work_conditions") finding = persona.work_conditions.meaning >= 3.5 ? "the demands have grown · the work still means" : "the work has gone hollow · the demands have not";
           }
 
           return (
@@ -616,14 +625,14 @@ export default function BurnoutDemo() {
           <div className="animate-fadeUp" style={{ marginTop: 24 }}>
             <div style={{ padding: "0.9rem 1.1rem", background: "var(--deep)", border: "1px solid var(--gold-dim)", marginBottom: 16 }}>
               <div className="mono" style={{ fontSize: "9px", color: "var(--gold)", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>
-                Profile Synthesis Complete
+                The pattern is visible
               </div>
               <p style={{ fontSize: "0.82rem", color: "var(--mist)", lineHeight: 1.6 }}>
-                Your data reveals a pattern we call <span style={{ color: "#c97575", fontStyle: "italic" }}>{profile.shadow.name}</span>. We analyzed {ASSESSMENT_CATEGORIES.reduce((s, c) => s + c.count, 0)} data points across {ASSESSMENT_CATEGORIES.length} clinical dimensions.
+                What has been pulling on you is called <span style={{ color: "#c97575", fontStyle: "italic" }}>{profile.shadow.name}</span>. It has been with you longer than this assessment. We have read {ASSESSMENT_CATEGORIES.reduce((s, c) => s + c.count, 0)} signals across {ASSESSMENT_CATEGORIES.length} dimensions of who you are.
               </p>
             </div>
             <button className="btn-gold" onClick={() => setScreen("profile")}>
-              SEE MY PROFILE →
+              SEE WHAT THE READING SHOWS →
             </button>
           </div>
         )}

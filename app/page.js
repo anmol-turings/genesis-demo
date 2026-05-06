@@ -288,6 +288,18 @@ export default function BurnoutDemo() {
     const myReqId = audio ? audio.bumpRequestId() : 0;
 
     const key = cacheKeyFor(kind, ctx);
+
+    const realm = orderedRealms[activeRealmIdx] || REALMS[0];
+    const ctxRealmId = (ctx.realm || realm)?.id || null;
+    const quote = selectQuote({
+      archetype: archetype.id, tone, kind, realmId: ctxRealmId, ctxKey: key,
+    });
+    const authorSlug = quote?.author ? quote.author.toLowerCase().replace(/[^a-z]/g,"") : "";
+    const priorCount = authorSlug ? (quoteHistory[authorSlug] || 0) : 0;
+    if (authorSlug) {
+      setQuoteHistory(h => ({ ...h, [authorSlug]: (h[authorSlug] || 0) + 1 }));
+    }
+
     if (audio && audio.hasCached(key)) {
       const cached = audio.getCached(key);
       setMentorRaw(cached.mentorRaw || "");
@@ -302,25 +314,9 @@ export default function BurnoutDemo() {
     setMentorLoading(true);
     setMentorRaw("");
 
-    // Step 4: pick the quote BEFORE prompting Mistral.
-    const realm = orderedRealms[activeRealmIdx] || REALMS[0];
-    const ctxRealmId = (ctx.realm || realm)?.id || null;
-    const quote = selectQuote({
-      archetype: archetype.id,
-      tone,
-      kind,
-      realmId: ctxRealmId,
-      ctxKey: key,
-    });
-
-    const authorSlug = quote?.author ? quote.author.toLowerCase().replace(/[^a-z]/g,"") : "";
-    const priorCount = authorSlug ? (quoteHistory[authorSlug] || 0) : 0;
     const ackPrefix = (authorSlug && priorCount === 2 && archetype?.returningQuoteAck)
       ? archetype.returningQuoteAck.replace(/\{author\}/gi, quote.author)
       : "";
-    if (authorSlug) {
-      setQuoteHistory(h => ({ ...h, [authorSlug]: (h[authorSlug] || 0) + 1 }));
-    }
 
     // Step 5: build the system + user prompts. Pass quote into the user prompt.
     const systemPrompt = buildMentorPrompt({
@@ -640,6 +636,14 @@ export default function BurnoutDemo() {
 
   // ─── PROFILE + SHADOW REVEAL (iceberg animation) ───────────────────
   if (screen === "profile") {
+    const shadowLabels = [
+      { name: "exhaustion",    value: persona.bat.exhaustion.toFixed(1),         x: -110, y: 100 },
+      { name: "sleep_drift",   value: persona.lifestyle.sleep.toFixed(1),         x:  100, y: 130 },
+      { name: "alexithymia",   value: persona.alexithymia.toFixed(1),             x:  -30, y: 200 },
+      { name: "work_pressure", value: persona.work_conditions.pressure.toFixed(1), x:  130, y: 250 },
+      { name: "loneliness",    value: persona.cognitive_health.loneliness.toFixed(1), x: -130, y: 290 },
+    ];
+
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         <div className="section-label">WHAT WE READ OF YOU</div>
@@ -648,14 +652,32 @@ export default function BurnoutDemo() {
 
         {/* ONE animation per page — Iceberg reveals the Shadow */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-          <video
-            src="/scenes/iceberg.mp4"
-            autoPlay
-            loop
-            muted
-            playsInline
-            style={{ width: 420, height: 340, maxWidth: "100%", display: "block", background: "#06060a" }}
-          />
+          <div style={{ position: "relative", width: 420, height: 340 }}>
+            <video
+              src="/scenes/iceberg-bare.mp4"
+              autoPlay loop muted playsInline
+              style={{ width: 420, height: 340, display: "block", background: "#06060a" }}
+            />
+            {shadowLabels.map((lbl, i) => {
+              const left = 210 + lbl.x * 0.5 - 70;
+              const top  = 191 + lbl.y * 0.5 - 12;
+              return (
+                <div key={lbl.name} className="animate-fadeUp" style={{
+                  position: "absolute", left, top, width: 140, textAlign: "center",
+                  animationDelay: `${1.5 + i * 0.25}s`, opacity: 0,
+                  animationFillMode: "forwards",
+                  pointerEvents: "none",
+                }}>
+                  <div className="mono" style={{ fontSize: 11, letterSpacing: 2, color: "var(--gold-light)", textShadow: "0 0 8px rgba(232,200,140,0.75)" }}>
+                    {lbl.name}
+                  </div>
+                  <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: "var(--cream)", marginTop: 2, textShadow: "0 0 6px rgba(232,200,140,0.9), 0 0 16px rgba(201,168,76,0.5)" }}>
+                    {lbl.value}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Shadow name — big, serif, beneath the animation */}

@@ -528,7 +528,7 @@ export default function BurnoutDemo() {
         <div className="section-label">THE RIDE OF YOUR LIFE</div>
         <h1 className="serif" style={{ fontSize: "clamp(42px, 11vw, 66px)", color: "var(--cream)", lineHeight: 0.95, marginBottom: 8 }}>THE RIDE</h1>
         <p className="serif" style={{ fontSize: "1.05rem", fontStyle: "italic", color: "var(--gold-light)", marginBottom: 28 }}>
-          Before the body breaks, it begins to drift.
+          There is a version of you the world has not yet met.
         </p>
 
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
@@ -536,7 +536,7 @@ export default function BurnoutDemo() {
         </div>
 
         <p style={{ fontSize: "0.85rem", color: "var(--silver)", lineHeight: 1.8, marginBottom: 28 }}>
-          Ninety days. One mentor — chosen from those who have walked it before. The terrain is read from your 42 app readings. The walk is yours.
+          Ninety days. One mentor — chosen from those who have walked it before. The terrain is read from your 42 app readings. The walk is yours, and there is a version of you the world has not yet met.
         </p>
 
         <div className="gold-rule" />
@@ -579,23 +579,47 @@ export default function BurnoutDemo() {
 
           let finding = "";
           if (done && persona) {
+            let pulled, intact;
+
+            if (persona.personality.conscientiousness >= 4.0) intact = "the discipline is intact";
+            else if (persona.self_efficacy >= 3.5)             intact = "the agency is still yours";
+            else if (persona.work_conditions.meaning >= 3.5)   intact = "the meaning has not gone out";
+            else if (persona.personality.openness >= 4.0)      intact = "the curiosity remains";
+            else                                                intact = "the will is still here";
+
             if (c.key === "bat") {
               const ex = persona.bat.exhaustion, md = persona.bat.mental_distance, cg = persona.bat.cognitive, em = persona.bat.emotional;
-              if (ex >= 4.0) finding = "the body is signaling deep fatigue";
-              else if (md >= 4.0) finding = "distance is hardening into armor";
-              else if (cg >= 4.0) finding = "the mind is fragmenting under load";
-              else if (em >= 4.0) finding = "the heart is showing strain";
-              else finding = "patterns are surfacing";
+              if (ex >= 4.0)      pulled = "the body is tired";
+              else if (md >= 4.0) pulled = "distance is hardening";
+              else if (cg >= 4.0) pulled = "the mind is holding too much";
+              else if (em >= 4.0) pulled = "the heart is signaling strain";
+              else                pulled = "patterns are surfacing";
+              finding = `${pulled} · ${intact}`;
             }
             else if (c.key === "cognitive_health") {
-              finding = persona.cognitive_health.loneliness >= 3.8 ? "the alone shows" : persona.cognitive_health.anxiety >= 3.8 ? "the racing shows" : "the holding is uneven";
+              if (persona.cognitive_health.loneliness >= 3.8) pulled = "the alone shows";
+              else if (persona.cognitive_health.anxiety >= 3.8) pulled = "the racing shows";
+              else pulled = "the holding is uneven";
+              finding = `${pulled} · ${intact}`;
             }
-            else if (c.key === "metabolic_risk") finding = persona.metabolic_risk >= 3.5 ? "the form runs warm" : persona.metabolic_risk >= 2.5 ? "the form runs steady" : "the form runs cool";
-            else if (c.key === "lifestyle") finding = persona.lifestyle.sleep >= 4.0 ? "sleep is thinner than it knows" : "the rhythms are uneven";
-            else if (c.key === "alexithymia") finding = persona.alexithymia >= 3.8 ? "the translation has gone quiet" : "the translation is uneven";
-            else if (c.key === "self_efficacy") finding = persona.self_efficacy >= 3.5 ? "agency is intact" : "agency is thinning";
-            else if (c.key === "personality") finding = "the shape is steady";
-            else if (c.key === "work_conditions") finding = persona.work_conditions.meaning >= 3.5 ? "the demands have grown · the work still means" : "the work has gone hollow · the demands have not";
+            else if (c.key === "metabolic_risk") {
+              finding = persona.metabolic_risk >= 3.5 ? "the form runs warm · the strength is there" : persona.metabolic_risk >= 2.5 ? "the form runs steady" : "the form runs cool";
+            }
+            else if (c.key === "lifestyle") {
+              finding = persona.lifestyle.sleep >= 4.0 ? "sleep is thinner than it knows · rhythm can return" : "the rhythms are uneven";
+            }
+            else if (c.key === "alexithymia") {
+              finding = persona.alexithymia >= 3.8 ? "the translation has gone quiet · the precision has not" : "the translation is uneven";
+            }
+            else if (c.key === "self_efficacy") {
+              finding = persona.self_efficacy >= 3.5 ? "agency is intact" : "agency is thinning · the will is here";
+            }
+            else if (c.key === "personality") {
+              finding = "the shape is yours";
+            }
+            else if (c.key === "work_conditions") {
+              finding = persona.work_conditions.meaning >= 3.5 ? "the demands have grown · the work still means" : "the work has gone hollow · what you trust yourself to do is not lost";
+            }
           }
 
           return (
@@ -622,10 +646,13 @@ export default function BurnoutDemo() {
           <div className="animate-fadeUp" style={{ marginTop: 24 }}>
             <div style={{ padding: "0.9rem 1.1rem", background: "var(--deep)", border: "1px solid var(--gold-dim)", marginBottom: 16 }}>
               <div className="mono" style={{ fontSize: "9px", color: "var(--gold)", letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>
-                The pattern is visible
+                The reading
               </div>
+              <p style={{ fontSize: "0.82rem", color: "var(--mist)", lineHeight: 1.6, marginBottom: 8 }}>
+                <span style={{ color: "var(--gold-light)", fontStyle: "italic" }}>What you bring:</span> {persona.gifts}.
+              </p>
               <p style={{ fontSize: "0.82rem", color: "var(--mist)", lineHeight: 1.6 }}>
-                What has been pulling on you is called <span style={{ color: "#c97575", fontStyle: "italic" }}>{profile.shadow.name}</span>. It has been with you longer than this assessment. We have read {ASSESSMENT_CATEGORIES.reduce((s, c) => s + c.count, 0)} signals across {ASSESSMENT_CATEGORIES.length} dimensions of who you are.
+                <span style={{ color: "#c97575", fontStyle: "italic" }}>What walks with you:</span> a part of you called {profile.shadow.name}. It will not walk in front of you.
               </p>
             </div>
             <button className="btn-gold" onClick={() => setScreen("profile")}>
@@ -651,7 +678,7 @@ export default function BurnoutDemo() {
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         <div className="section-label">WHAT WE READ OF YOU</div>
-        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>We have read your terrain, {userName}.</h2>
+        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>{userName}, this is what we read.</h2>
         <p style={{ fontSize: "0.78rem", color: "var(--silver)", marginBottom: 18 }}>{persona.context}</p>
 
         {/* ONE animation per page — Iceberg reveals the Shadow */}
@@ -684,10 +711,20 @@ export default function BurnoutDemo() {
           </div>
         </div>
 
+        {/* What You Bring panel — strengths first, before the shadow */}
+        <div style={{ padding: "1rem 1.2rem", background: "var(--deep)", borderLeft: `2px solid ${recommendedArchetype?.color || "var(--gold)"}`, marginBottom: 12 }}>
+          <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: recommendedArchetype?.color || "var(--gold)", textTransform: "uppercase", marginBottom: 6 }}>
+            What You Bring
+          </div>
+          <p className="serif" style={{ fontSize: "0.95rem", fontStyle: "italic", color: "var(--cream)", lineHeight: 1.65 }}>
+            {persona.gifts}
+          </p>
+        </div>
+
         {/* Shadow name — big, serif, beneath the animation */}
         <div style={{ padding: "1rem 1.2rem", background: "var(--deep)", borderLeft: "2px solid var(--shadow-red)", marginBottom: 16 }}>
           <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: "#c97575", textTransform: "uppercase", marginBottom: 4 }}>
-            WHAT HAS BEEN PULLING ON YOU
+            What Walks With You
           </div>
           <h3 className="serif" style={{ fontSize: "1.7rem", color: "var(--cream)", marginBottom: 6 }}>{profile.shadow.name}</h3>
           <p className="serif" style={{ fontSize: "0.95rem", fontStyle: "italic", color: "var(--gold-light)", marginBottom: 12, lineHeight: 1.6 }}>
@@ -753,9 +790,9 @@ export default function BurnoutDemo() {
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         <div className="section-label">WHO SHOWS UP FOR YOU</div>
-        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>These are the ones who walk with people like you.</h2>
+        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>These walk with people becoming what you could become.</h2>
         <p style={{ fontSize: "0.8rem", color: "var(--silver)", marginBottom: 18 }}>
-          Drawn from what we read of you — temperament, terrain, the work you do.
+          Drawn from the gifts you bring — temperament, agency, the work you do.
         </p>
 
         {/* Recommended card — now clickable to re-select after picking another */}
@@ -953,9 +990,17 @@ export default function BurnoutDemo() {
           </div>
         </div>
 
-        {/* Shadow + mute */}
+        {/* Stage band + mute */}
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <ShadowIndicator recoveryScore={recoveryScore} shadowName={profile.shadow.name} onClick={openShadowEncounter} />
+          <div style={{ flex: 1, padding: "6px 10px", border: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: stage.color, boxShadow: `0 0 ${4 + (totalPoints/1000)*8}px ${stage.color}` }} />
+            <div className="serif" style={{ fontSize: "0.78rem", color: "var(--cream)", flex: 1, fontStyle: "italic" }}>
+              {recoveryBandPhrase(recoveryScore)}
+            </div>
+            <div className="mono" style={{ fontSize: "7px", color: "var(--gold-dim)", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+              {stage.title}
+            </div>
+          </div>
           <span onClick={() => setMuted(m => !m)} style={{ cursor: "pointer", padding: "6px 10px", border: "1px solid rgba(255,255,255,0.06)", fontSize: "0.7rem", color: "var(--silver)", display: "flex", alignItems: "center" }}>
             {muted ? "🔇" : "🔊"}
           </span>
@@ -1061,7 +1106,7 @@ export default function BurnoutDemo() {
         {/* Actions */}
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <button className="btn-gold" onClick={nextDay} style={{ flex: 1 }}>RIDE ON →</button>
-          <button className="btn-ghost" onClick={openShadowEncounter} style={{ flex: 1 }}>FACE THE SHADOW</button>
+          <button className="btn-ghost" onClick={openShadowEncounter} style={{ flex: 1 }}>THE CONVERSATION</button>
         </div>
 
         {/* Compressed score + progression */}
@@ -1148,16 +1193,16 @@ export default function BurnoutDemo() {
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         {/* Always-available exit — does NOT require offering to leave (Bug #6) */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div className="section-label" style={{ marginBottom: 0 }}>MEET THE SHADOW</div>
+          <div className="section-label" style={{ marginBottom: 0 }}>THE CONVERSATION</div>
           <span onClick={exitShadowEncounter} style={{ cursor: "pointer", padding: "4px 10px", border: "1px solid rgba(255,255,255,0.08)", fontSize: "0.65rem", color: "var(--silver)", fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
             ← BACK TO THE TRAIL
           </span>
         </div>
         <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 6 }}>
-          The Shadow has grown.
+          There is a part of you we should talk to.
         </h2>
         <p className="serif" style={{ color: "var(--silver)", fontSize: "0.85rem", fontStyle: "italic", marginBottom: 14, lineHeight: 1.6 }}>
-          {profile.shadow.name} has been with you a long time. To see it now is to begin the bargain.
+          {profile.shadow.name} has been with you a long time. Today we listen to what it has been protecting.
         </p>
 
         {/* Shadow integration physics animation */}
@@ -1166,7 +1211,7 @@ export default function BurnoutDemo() {
         </div>
 
         <div className="mono" style={{ fontSize: "9px", letterSpacing: "0.2em", color: "var(--gold-dim)", textTransform: "uppercase", marginBottom: 8 }}>
-          WHAT THE SHADOW IS ASKING:
+          WHAT IT IS ASKING:
         </div>
 
         <div style={{ padding: "1rem", background: "var(--deep)", border: `1px solid ${archetype.color}30`, marginBottom: 14 }}>
@@ -1180,7 +1225,7 @@ export default function BurnoutDemo() {
 
         <div style={{ padding: "1rem", background: "rgba(139,58,58,0.06)", borderLeft: "2px solid var(--shadow-red)", marginBottom: 14 }}>
           <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: "#c97575", textTransform: "uppercase", marginBottom: 6 }}>
-            The Shadow's Origin
+            WHERE IT CAME FROM
           </div>
           <p className="serif" style={{ fontSize: "0.92rem", fontStyle: "italic", color: "var(--cream)", lineHeight: 1.7 }}>
             {profile.shadow.mythicNaming}
@@ -1192,7 +1237,7 @@ export default function BurnoutDemo() {
           onClick={submitShadowEncounter}
           disabled={mentorLoading || mentorRaw}
         >
-          {mentorRaw ? "RECEIVED" : mentorLoading ? `${archetype.name} listens...` : `OFFER IT TO ${archetype.name.toUpperCase()} →`}
+          {mentorRaw ? "RECEIVED" : mentorLoading ? `${archetype.name} listens...` : `BRING IT TO ${archetype.name.toUpperCase()} →`}
         </button>
 
         {(mentorLoading || mentorRaw) && (

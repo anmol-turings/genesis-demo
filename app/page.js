@@ -14,16 +14,16 @@ import {
   passagePhrase, recoveryBandPhrase,
 } from "../lib/constants";
 import {
-  ApproachingForm, BuildingPulse, OutwardReach,
-  PathResolving, TowerRising, MakersTrail, DoorwayOpening,
+  SeedRevealing, FillingWell, Cascade,
+  SignalFromNoise, LaserFromScatter, HandsPattern, KnotUntying,
 } from "../lib/r3f";
 
 const REALM_R3F = {
-  body:      BuildingPulse,
-  withdrawn: OutwardReach,
-  unnamed:   PathResolving,
-  scattered: TowerRising,
-  purpose:   MakersTrail,
+  body:      FillingWell,
+  withdrawn: Cascade,
+  unnamed:   SignalFromNoise,
+  scattered: LaserFromScatter,
+  purpose:   HandsPattern,
 };
 
 async function fetchMentor(systemPrompt, userPrompt) {
@@ -697,7 +697,7 @@ export default function BurnoutDemo() {
         {/* ONE animation per page — r3f form approaching */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
           <div style={{ width: 420, height: 340 }}>
-            <ApproachingForm archetypeId={recommendedArchetype?.id || "stoic"} />
+            <SeedRevealing archetypeId={recommendedArchetype?.id || "stoic"} />
           </div>
         </div>
 
@@ -1192,7 +1192,7 @@ export default function BurnoutDemo() {
         {/* Shadow integration — r3f doorway */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
           <div style={{ width: 420, height: 320 }}>
-            <DoorwayOpening archetypeId={archetype?.id || "stoic"} />
+            <KnotUntying archetypeId={archetype?.id || "stoic"} />
           </div>
         </div>
 

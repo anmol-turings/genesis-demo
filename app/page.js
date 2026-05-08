@@ -14,7 +14,7 @@ import {
   passagePhrase, recoveryBandPhrase,
 } from "../lib/constants";
 import {
-  ChrysalisDissolution, FillingWell, Cascade,
+  SlabShedding, FillingWell, Cascade,
   SignalFromNoise, LaserFromScatter, HandsPattern, KnotUntying,
 } from "../lib/r3f";
 
@@ -697,7 +697,7 @@ export default function BurnoutDemo() {
         {/* ONE animation per page — r3f form approaching */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
           <div style={{ width: 420, height: 340 }}>
-            <ChrysalisDissolution archetypeId={recommendedArchetype?.id || "stoic"} />
+            <SlabShedding archetypeId={recommendedArchetype?.id || "stoic"} />
           </div>
         </div>
 

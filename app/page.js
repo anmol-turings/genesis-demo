@@ -13,6 +13,18 @@ import {
   buildShadowEncounterPrompt, buildAspirationalPrompt,
   passagePhrase, recoveryBandPhrase,
 } from "../lib/constants";
+import {
+  ApproachingForm, BuildingPulse, OutwardReach,
+  PathResolving, TowerRising, MakersTrail, DoorwayOpening,
+} from "../lib/r3f";
+
+const REALM_R3F = {
+  body:      BuildingPulse,
+  withdrawn: OutwardReach,
+  unnamed:   PathResolving,
+  scattered: TowerRising,
+  purpose:   MakersTrail,
+};
 
 async function fetchMentor(systemPrompt, userPrompt) {
   try {
@@ -196,10 +208,6 @@ function ShadowIndicator({ recoveryScore, shadowName, onClick }) {
     </div>
   );
 }
-
-const REALM_VIDEO = {
-  withdrawn: "/scenes/embers.mp4",
-};
 
 export default function BurnoutDemo() {
   const [screen, setScreen] = useState("hero");
@@ -680,47 +688,16 @@ export default function BurnoutDemo() {
 
   // ─── PROFILE + SHADOW REVEAL (iceberg animation) ───────────────────
   if (screen === "profile") {
-    const shadowLabels = [
-      { name: "exhaustion",    value: persona.bat.exhaustion.toFixed(1),         x: -110, y: 100 },
-      { name: "sleep_drift",   value: persona.lifestyle.sleep.toFixed(1),         x:  100, y: 130 },
-      { name: "alexithymia",   value: persona.alexithymia.toFixed(1),             x:  -30, y: 200 },
-      { name: "work_pressure", value: persona.work_conditions.pressure.toFixed(1), x:  130, y: 250 },
-      { name: "loneliness",    value: persona.cognitive_health.loneliness.toFixed(1), x: -130, y: 290 },
-    ];
-
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         <div className="section-label">WHAT WE READ OF YOU</div>
         <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>{userName}, this is what we read.</h2>
         <p style={{ fontSize: "0.78rem", color: "var(--silver)", marginBottom: 18 }}>{persona.context}</p>
 
-        {/* ONE animation per page — Iceberg reveals the Shadow */}
+        {/* ONE animation per page — r3f form approaching */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-          <div style={{ position: "relative", width: 420, height: 340 }}>
-            <video
-              src="/scenes/iceberg-bare.mp4"
-              autoPlay loop muted playsInline
-              style={{ width: 420, height: 340, display: "block", background: "#06060a" }}
-            />
-            {shadowLabels.map((lbl, i) => {
-              const left = 210 + lbl.x * 0.5 - 70;
-              const top  = 191 + lbl.y * 0.5 - 12;
-              return (
-                <div key={lbl.name} className="animate-fadeUp" style={{
-                  position: "absolute", left, top, width: 140, textAlign: "center",
-                  animationDelay: `${1.5 + i * 0.25}s`, opacity: 0,
-                  animationFillMode: "forwards",
-                  pointerEvents: "none",
-                }}>
-                  <div className="mono" style={{ fontSize: 11, letterSpacing: 2, color: "var(--gold-light)", textShadow: "0 0 8px rgba(232,200,140,0.75)" }}>
-                    {lbl.name}
-                  </div>
-                  <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: "var(--cream)", marginTop: 2, textShadow: "0 0 6px rgba(232,200,140,0.9), 0 0 16px rgba(201,168,76,0.5)" }}>
-                    {lbl.value}
-                  </div>
-                </div>
-              );
-            })}
+          <div style={{ width: 420, height: 340 }}>
+            <ApproachingForm archetypeId={recommendedArchetype?.id || "stoic"} />
           </div>
         </div>
 
@@ -1031,18 +1008,12 @@ export default function BurnoutDemo() {
           </div>
         </div>
 
-        {/* THE ONE HERO ANIMATION — physics metaphor, state-driven */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, background: "#06060a", border: `1px solid ${realm.color}20` }}>
-          {REALM_VIDEO[realm.id] ? (
-            <video
-              key={realm.id}
-              src={REALM_VIDEO[realm.id]}
-              autoPlay loop muted playsInline
-              style={{ width: 420, height: 340, display: "block" }}
-            />
-          ) : (
-            <RealmAnimation scene={realm.id} color={realm.color} state={completedCount} size={{ w: 420, h: 340 }} />
-          )}
+        {/* THE ONE HERO ANIMATION — r3f scene per realm */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, background: "#06060a", border: `1px solid ${realm.color}20`, width: 420, height: 340 }}>
+          {(() => {
+            const Scene = REALM_R3F[realm.id];
+            return Scene ? <Scene archetypeId={archetype?.id || "stoic"} /> : null;
+          })()}
         </div>
 
         {/* Mentor message — bridge text + quote — with the archetype mandala beside it */}
@@ -1218,9 +1189,11 @@ export default function BurnoutDemo() {
           {profile.shadow.name} has been with you a long time. Today we listen to what it has been protecting.
         </p>
 
-        {/* Shadow integration physics animation */}
+        {/* Shadow integration — r3f doorway */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-          <RealmAnimation scene="integration" color={archetype.color} size={{ w: 420, h: 320 }} />
+          <div style={{ width: 420, height: 320 }}>
+            <DoorwayOpening archetypeId={archetype?.id || "stoic"} />
+          </div>
         </div>
 
         <div className="mono" style={{ fontSize: "9px", letterSpacing: "0.2em", color: "var(--gold-dim)", textTransform: "uppercase", marginBottom: 8 }}>

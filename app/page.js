@@ -251,6 +251,12 @@ export default function BurnoutDemo() {
     audio.onEnded(() => setIsPlaying(false));
   }, [audio]);
 
+  useEffect(() => {
+    if (screen === "tone" && tone && archetype && persona && profile && !muted) {
+      generateMentor("aspirational", {}, true);
+    }
+  }, [screen, tone, archetype, persona, profile, muted]);
+
   // Cache key builder. The same (archetype, day, kind, ctxKey) tuple should
   // never trigger Mistral or ElevenLabs twice.
   const cacheKeyFor = (kind, ctx) => {
@@ -285,10 +291,10 @@ export default function BurnoutDemo() {
   //   7. Compose the final mentorRaw with [quote] and [author] tags appended.
   //   8. Speak the bridge + "As X put it: ..." via ElevenLabs.
   //   9. Cache the (mentorRaw, audioUrl) pair.
-  const generateMentor = async (kind, ctx = {}) => {
+  const generateMentor = async (kind, ctx = {}, prewarm = false) => {
     if (!archetype || !persona || !profile) return;
 
-    if (audio) audio.stop();
+    if (!prewarm && audio) audio.stop();
     const myReqId = audio ? audio.bumpRequestId() : 0;
 
     const key = cacheKeyFor(kind, ctx);
@@ -305,6 +311,7 @@ export default function BurnoutDemo() {
     }
 
     if (audio && audio.hasCached(key)) {
+      if (prewarm) return;
       const cached = audio.getCached(key);
       setMentorRaw(cached.mentorRaw || "");
       setMentorLoading(false);
@@ -315,8 +322,10 @@ export default function BurnoutDemo() {
       return;
     }
 
-    setMentorLoading(true);
-    setMentorRaw("");
+    if (!prewarm) {
+      setMentorLoading(true);
+      setMentorRaw("");
+    }
 
     const ackPrefix = (authorSlug && priorCount === 2 && archetype?.returningQuoteAck)
       ? archetype.returningQuoteAck.replace(/\{author\}/gi, quote.author)
@@ -342,7 +351,7 @@ export default function BurnoutDemo() {
 
     // Step 6: get Mistral's bridge sentences.
     const mistralRaw = await fetchMentor(systemPrompt, userPrompt);
-    if (audio && audio.isStale(myReqId)) return;
+    if (!prewarm && audio && audio.isStale(myReqId)) return;
 
     // Pull out the [concept:xxx] tag, truncate the prose to <=2 sentences,
     // then re-attach the tag and the quote/author tags.
@@ -356,8 +365,10 @@ export default function BurnoutDemo() {
       ? `${bridgeWithAck} ${concept}[quote]${quote.text}[/quote][author]${quote.author}[/author]`
       : `${bridgeWithAck} ${concept}`;
 
-    setMentorRaw(finalRaw);
-    setMentorLoading(false);
+    if (!prewarm) {
+      setMentorRaw(finalRaw);
+      setMentorLoading(false);
+    }
 
     // Step 8: speak via ElevenLabs.
     let audioUrl = null;
@@ -369,12 +380,12 @@ export default function BurnoutDemo() {
     }
     if (archetype?.voiceId && !muted) {
       audioUrl = await fetchVoice(speakingText, archetype.voiceId);
-      if (audio && audio.isStale(myReqId)) return;
+      if (!prewarm && audio && audio.isStale(myReqId)) return;
     }
 
     if (audio) {
       audio.setCached(key, { mentorRaw: finalRaw, audioUrl });
-      if (audioUrl && !muted) {
+      if (!prewarm && audioUrl && !muted) {
         await audio.play(audioUrl);
         setIsPlaying(true);
       }

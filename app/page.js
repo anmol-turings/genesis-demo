@@ -435,6 +435,7 @@ export default function BurnoutDemo() {
   }, [screen, loadingCategoryIdx]);
 
   const handleGoToArchetype = () => {
+    if (audio) audio.unlock();
     const rec = recommendArchetype(persona);
     setRecommendedArchetype(rec.archetype);
     setArchetype(rec.archetype);
@@ -443,6 +444,7 @@ export default function BurnoutDemo() {
   };
 
   const handleConfirmArchetype = () => {
+    if (audio) audio.unlock();
     const rec = recommendTone(persona);
     setRecommendedTone(rec.tone);
     setTone(rec.tone.id);
@@ -451,7 +453,7 @@ export default function BurnoutDemo() {
   };
 
   const handleGoToAspirational = async () => {
-    if (audio) audio.stop();
+    if (audio) { audio.unlock(); audio.stop(); }
     setIsPlaying(false);
     setMentorRaw("");
     setScreen("aspirational");
@@ -459,7 +461,7 @@ export default function BurnoutDemo() {
   };
 
   const handleEnterDashboard = async () => {
-    if (audio) audio.stop();
+    if (audio) { audio.unlock(); audio.stop(); }
     setIsPlaying(false);
     setMentorRaw("");
     setScreen("dashboard");

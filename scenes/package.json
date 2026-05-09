@@ -8,13 +8,16 @@
     "render-iceberg": "remotion render src/index.tsx Iceberg ../public/scenes/iceberg.mp4 --concurrency=2 --browser-executable=$CHROME",
     "render-iceberg-bare": "remotion render src/index.tsx IcebergBare ../public/scenes/iceberg-bare.mp4 --concurrency=2 --browser-executable=$CHROME",
     "render-embers": "remotion render src/index.tsx Embers ../public/scenes/embers.mp4 --concurrency=2 --browser-executable=$CHROME",
-    "render-all": "npm run render-iceberg && npm run render-embers"
+    "render-slab-shedding": "remotion render src/index.tsx SlabShedding ../public/scenes/slab-shedding.mp4 --concurrency=2 --shutter-angle=180",
+    "render-all": "npm run render-iceberg && npm run render-iceberg-bare && npm run render-embers && npm run render-slab-shedding"
   },
   "dependencies": {
+    "@react-three/fiber": "^8.18.0",
+    "@remotion/cli": "^4.0.190",
+    "@remotion/three": "^4.0.190",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "remotion": "^4.0.190",
-    "@remotion/cli": "^4.0.190"
+    "three": "^0.184.0"
   }
 }
-

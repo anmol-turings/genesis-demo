@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Mandala from "../lib/Mandala";
-import RealmAnimation from "../lib/RealmAnimation";
+import SignatureScene from "../lib/SignatureScene";
 import { getAudioController } from "../lib/AudioController";
 import { selectQuote, formatQuoteForSpeech } from "../lib/quotes";
 import {
@@ -13,18 +13,6 @@ import {
   buildShadowEncounterPrompt, buildAspirationalPrompt,
   passagePhrase, recoveryBandPhrase,
 } from "../lib/constants";
-import {
-  SlabShedding, FillingWell, Cascade,
-  SignalFromNoise, LaserFromScatter, HandsPattern, KnotUntying,
-} from "../lib/r3f";
-
-const REALM_R3F = {
-  body:      FillingWell,
-  withdrawn: Cascade,
-  unnamed:   SignalFromNoise,
-  scattered: LaserFromScatter,
-  purpose:   HandsPattern,
-};
 
 async function fetchMentor(systemPrompt, userPrompt) {
   try {
@@ -694,11 +682,9 @@ export default function BurnoutDemo() {
         <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>{userName}, this is what we read.</h2>
         <p style={{ fontSize: "0.78rem", color: "var(--silver)", marginBottom: 18 }}>{persona.context}</p>
 
-        {/* ONE animation per page — r3f form approaching */}
+        {/* Signature scene — who-stays */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-          <div style={{ width: 420, height: 340 }}>
-            <SlabShedding archetypeId={recommendedArchetype?.id || "stoic"} />
-          </div>
+          <SignatureScene id="profile" size={360} />
         </div>
 
         {/* What You Bring panel — strengths first, before the shadow */}
@@ -1008,12 +994,9 @@ export default function BurnoutDemo() {
           </div>
         </div>
 
-        {/* THE ONE HERO ANIMATION — r3f scene per realm */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, background: "#06060a", border: `1px solid ${realm.color}20`, width: 420, height: 340 }}>
-          {(() => {
-            const Scene = REALM_R3F[realm.id];
-            return Scene ? <Scene archetypeId={archetype?.id || "stoic"} /> : null;
-          })()}
+        {/* THE ONE HERO ANIMATION — signature scene per realm */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+          <SignatureScene id={realm.id} size={360} />
         </div>
 
         {/* Mentor message — bridge text + quote — with the archetype mandala beside it */}
@@ -1189,11 +1172,9 @@ export default function BurnoutDemo() {
           {profile.shadow.name} has been with you a long time. Today we listen to what it has been protecting.
         </p>
 
-        {/* Shadow integration — r3f doorway */}
+        {/* Shadow integration — signature scene */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-          <div style={{ width: 420, height: 320 }}>
-            <KnotUntying archetypeId={archetype?.id || "stoic"} />
-          </div>
+          <SignatureScene id="shadow" size={360} />
         </div>
 
         <div className="mono" style={{ fontSize: "9px", letterSpacing: "0.2em", color: "var(--gold-dim)", textTransform: "uppercase", marginBottom: 8 }}>

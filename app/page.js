@@ -24,6 +24,7 @@ import {
   getActivities,
   getHeroScene,
   getJourney,
+  getQuoteTags,
 } from "../lib/config/onboarding";
 import {
   VOICES,
@@ -216,8 +217,9 @@ function ShadowIndicator({ recoveryScore, shadowName, onClick }) {
 }
 
 // Card component for the recommended-only mentor selection screen.
-// Used both for the prominent recommended card and the disclosed grid of others.
-function ArchetypeCard({ archetype, recommended, firstMessage, selected, onPick, onPlayPreview, compact }) {
+// "Who" decision — mandala + name + figure + first-message preview text.
+// No audio: voice is its own screen now.
+function ArchetypeCard({ archetype, recommended, firstMessage, selected, onPick, compact }) {
   const previewLine = firstMessage
     ? firstMessage.split(/\.\s+/)[0].replace(/\.$/, "") + "."
     : null;
@@ -231,75 +233,71 @@ function ArchetypeCard({ archetype, recommended, firstMessage, selected, onPick,
         cursor: "pointer",
         marginBottom: compact ? 0 : 8,
         transition: "background 0.2s, border-color 0.2s",
+        display: "flex",
+        gap: compact ? 10 : 14,
+        alignItems: "flex-start",
       }}
     >
-      <div
-        className="mono"
-        style={{
-          fontSize: "8px",
-          letterSpacing: "0.2em",
-          color: archetype.color,
-          textTransform: "uppercase",
-          marginBottom: 4,
-        }}
-      >
-        {archetype.figure}
-        {recommended && (
-          <span style={{ marginLeft: 8, color: "var(--gold)" }}>★ RECOMMENDED</span>
-        )}
+      <div style={{ flexShrink: 0, paddingTop: 2 }}>
+        <Mandala
+          archetypeId={archetype.id}
+          color={archetype.color}
+          concept="opening"
+          size={compact ? 56 : 88}
+        />
       </div>
-      <div
-        className="serif"
-        style={{
-          fontSize: compact ? "1rem" : "1.25rem",
-          color: "var(--cream)",
-          marginBottom: 4,
-        }}
-      >
-        {archetype.name}
-      </div>
-      <div
-        style={{
-          fontSize: "0.78rem",
-          color: "var(--silver)",
-          marginBottom: 8,
-          lineHeight: 1.5,
-        }}
-      >
-        {archetype.desc}
-      </div>
-      {!compact && previewLine && (
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          className="mono"
+          style={{
+            fontSize: "8px",
+            letterSpacing: "0.2em",
+            color: archetype.color,
+            textTransform: "uppercase",
+            marginBottom: 4,
+          }}
+        >
+          {archetype.figure}
+          {recommended && (
+            <span style={{ marginLeft: 8, color: "var(--gold)" }}>★ RECOMMENDED</span>
+          )}
+        </div>
+        <div
+          className="serif"
+          style={{
+            fontSize: compact ? "1rem" : "1.25rem",
+            color: "var(--cream)",
+            marginBottom: 4,
+          }}
+        >
+          {archetype.name}
+        </div>
         <div
           style={{
-            fontSize: "0.82rem",
-            color: "var(--cream)",
-            fontStyle: "italic",
-            borderLeft: `2px solid ${archetype.color}`,
-            paddingLeft: 10,
-            marginTop: 10,
+            fontSize: "0.78rem",
+            color: "var(--silver)",
+            marginBottom: compact ? 0 : 8,
             lineHeight: 1.5,
           }}
         >
-          "{previewLine}"
+          {archetype.desc}
         </div>
-      )}
-      <button
-        onClick={(e) => { e.stopPropagation(); onPlayPreview(); }}
-        style={{
-          background: "transparent",
-          border: `1px solid ${archetype.color}55`,
-          color: archetype.color,
-          padding: "5px 12px",
-          marginTop: 10,
-          fontSize: "0.7rem",
-          fontFamily: "'Space Mono', monospace",
-          letterSpacing: "0.12em",
-          cursor: "pointer",
-          textTransform: "uppercase",
-        }}
-      >
-        ▶ Hear voice
-      </button>
+        {!compact && previewLine && (
+          <div
+            style={{
+              fontSize: "0.82rem",
+              color: "var(--cream)",
+              fontStyle: "italic",
+              borderLeft: `2px solid ${archetype.color}`,
+              paddingLeft: 10,
+              marginTop: 10,
+              lineHeight: 1.55,
+            }}
+          >
+            "{previewLine}"
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -418,13 +416,15 @@ export default function BurnoutDemo() {
   const [diagnosis, setDiagnosis] = useState(null);
   const [showOtherMentors, setShowOtherMentors] = useState(false);
   const [showOtherTones, setShowOtherTones] = useState(false);
-  // archetypeId → object URL of TTS audio for that archetype's first message
-  const [mentorPreviews, setMentorPreviews] = useState({});
   // Voice (decoupled from mentor): independent picker between archetype + tone
   const [selectedVoice, setSelectedVoice] = useState(null);
   const [showOtherVoices, setShowOtherVoices] = useState(false);
   // voiceId-keyed cache of TTS for the diagnosed first message in each voice
   const [voicePreviews, setVoicePreviews] = useState({});
+  // Aspirational screen content — first message, quote, promise rendered as
+  // three blocks; the same three are voiced as one continuous TTS read.
+  const [aspirationalPromise, setAspirationalPromise] = useState("");
+  const [aspirationalQuote, setAspirationalQuote] = useState(null);
   // Activities use problemId-keyed completion (analog of completedByRealm).
   const [completedByProblem, setCompletedByProblem] = useState({});
 
@@ -442,26 +442,7 @@ export default function BurnoutDemo() {
   // Aspirational is now driven by the lookup-table first-message, not the
   // Mistral pipeline — no prewarm needed.
 
-  // Preload the recommended archetype's voice preview when the archetype
-  // screen mounts. Lazy-load the others when the user clicks "Explore other
-  // guides".
-  useEffect(() => {
-    if (screen === "archetype" && recommendedArchetype && diagnosis) {
-      preloadMentorPreview(recommendedArchetype.id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, recommendedArchetype, diagnosis]);
-
-  useEffect(() => {
-    if (showOtherMentors && diagnosis && recommendedArchetype) {
-      ARCHETYPES.forEach(a => {
-        if (a.id !== recommendedArchetype.id && !mentorPreviews[a.id]) {
-          preloadMentorPreview(a.id);
-        }
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showOtherMentors]);
+  // (Mentor previews removed — voice is its own screen now.)
 
   // Voice screen: preload recommended voice on mount, lazy-load others
   // when the "Try other voices" disclosure opens.
@@ -707,41 +688,7 @@ export default function BurnoutDemo() {
     setArchetype(rec.archetype);
     setArchetypeReasons(rec.reasons);
     setShowOtherMentors(false);
-    // Reset preview cache when entering archetype selection so we don't
-    // play stale audio from a previous run.
-    setMentorPreviews({});
     setScreen("archetype");
-  };
-
-  // Pre-generate ElevenLabs TTS for an archetype's first-message in this
-  // problem, cache the resulting object URL keyed by archetype id.
-  const preloadMentorPreview = async (archetypeId) => {
-    if (!selectedDomain || !diagnosis) return;
-    if (mentorPreviews[archetypeId]) return; // already cached
-    const archetypeObj = ARCHETYPES.find(a => a.id === archetypeId);
-    const text = getFirstMessage(selectedDomain, diagnosis.problemId, archetypeId);
-    if (!archetypeObj || !text || !archetypeObj.voiceId) return;
-    const audioUrl = await fetchVoice(text, archetypeObj.voiceId);
-    if (!audioUrl) return;
-    setMentorPreviews(prev => ({ ...prev, [archetypeId]: audioUrl }));
-  };
-
-  const playMentorPreview = (archetypeId) => {
-    if (audio) audio.unlock();
-    const url = mentorPreviews[archetypeId];
-    if (!url) {
-      // Lazy-load if user hits play before preload finished.
-      preloadMentorPreview(archetypeId).then(() => {
-        const fresh = mentorPreviews[archetypeId];
-        if (fresh && audio) audio.play(fresh);
-      });
-      return;
-    }
-    if (audio) {
-      audio.stop();
-      audio.play(url);
-      setIsPlaying(true);
-    }
   };
 
   // After picking the mentor, route to the voice picker (decoupled from
@@ -798,32 +745,48 @@ export default function BurnoutDemo() {
     }
   };
 
-  // Aspirational plays the chosen mentor's actual first message for the
-  // diagnosed problem AND the archetype's spoken promise — concatenated as
-  // one continuous TTS read. Routed through `selectedVoice` so the user
-  // hears the voice they picked, not the archetype's default.
+  // Aspirational shows three blocks — first message, quote, promise — and
+  // voices all three as a single continuous TTS read. Routed through
+  // selectedVoice so the user hears the voice they picked.
   const handleGoToAspirational = async () => {
     if (audio) { audio.unlock(); audio.stop(); }
     setIsPlaying(false);
     setMentorRaw("");
+    setAspirationalPromise("");
+    setAspirationalQuote(null);
     setScreen("aspirational");
     if (!selectedDomain || !diagnosis || !archetype) return;
+
     const firstMsg = getFirstMessage(selectedDomain, diagnosis.problemId, archetype.id);
     if (!firstMsg) return;
-    // Strip the markdown emphasis asterisks the promise uses for visual
-    // emphasis — they should not be spoken aloud.
+
     const promiseSpoken = archetype.promise
       ? archetype.promise.replace(/\*([^*]+)\*/g, "$1")
       : "";
-    const fullText = promiseSpoken ? `${firstMsg}\n\n${promiseSpoken}` : firstMsg;
-    setMentorRaw(fullText);
+    const quote = selectQuoteByTags(
+      getQuoteTags(selectedDomain, diagnosis.problemId),
+      `aspirational-${diagnosis.problemId}-${archetype.id}`
+    );
+
+    // Display state — three independent blocks.
+    setMentorRaw(firstMsg);
+    setAspirationalPromise(archetype.promise || "");
+    setAspirationalQuote(quote);
+
     const voiceForTts = selectedVoice?.voiceId || archetype.voiceId;
-    if (!muted && voiceForTts) {
-      const audioUrl = await fetchVoice(fullText, voiceForTts);
-      if (audioUrl && audio) {
-        await audio.play(audioUrl);
-        setIsPlaying(true);
-      }
+    if (muted || !voiceForTts) return;
+
+    // Voiced read: first message → quote → promise. Line breaks coax the
+    // TTS engine into natural pauses between sections.
+    const parts = [firstMsg];
+    if (quote) parts.push(`As ${quote.author} put it: "${quote.text}"`);
+    if (promiseSpoken) parts.push(promiseSpoken);
+    const fullText = parts.join("\n\n");
+
+    const audioUrl = await fetchVoice(fullText, voiceForTts);
+    if (audioUrl && audio) {
+      await audio.play(audioUrl);
+      setIsPlaying(true);
     }
   };
 
@@ -1329,7 +1292,6 @@ export default function BurnoutDemo() {
           firstMessage={firstMsgFor(recommendedArchetype.id)}
           selected={archetype?.id === recommendedArchetype.id}
           onPick={() => setArchetype(recommendedArchetype)}
-          onPlayPreview={() => playMentorPreview(recommendedArchetype.id)}
         />
 
         {!showOtherMentors && (
@@ -1363,7 +1325,6 @@ export default function BurnoutDemo() {
                   firstMessage={firstMsgFor(a.id)}
                   selected={archetype?.id === a.id}
                   onPick={() => setArchetype(a)}
-                  onPlayPreview={() => playMentorPreview(a.id)}
                   compact
                 />
               ))}
@@ -1536,38 +1497,51 @@ export default function BurnoutDemo() {
     );
   }
 
-  // ─── ASPIRATIONAL ──────────────────────────────────────────────────
+  // ─── ASPIRATIONAL — three blocks (first message, quote, promise) ───
   if (screen === "aspirational") {
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
-        <div className="section-label">Who You Could Become</div>
-        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 12 }}>
+        <div className="section-label">WHO YOU COULD BECOME</div>
+        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 18 }}>
           {archetype.name} speaks.
         </h2>
 
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-          <Mandala archetypeId={archetype.id} color={archetype.color} concept={mentorParsed.concept} size={220} />
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+          <Mandala archetypeId={archetype.id} color={archetype.color} concept="opening" size={220} />
         </div>
 
-        <div style={{ padding: "1.2rem", background: "var(--deep)", border: `1px solid ${archetype.color}30`, marginBottom: 16, minHeight: 120 }}>
-          {mentorLoading ? (
+        {/* First message */}
+        <div style={{ padding: "1rem 1.2rem", background: "var(--deep)", border: `1px solid ${archetype.color}30`, marginBottom: 14, minHeight: 90 }}>
+          {mentorRaw ? (
+            <p className="serif" style={{ fontSize: "0.95rem", fontStyle: "italic", color: "var(--cream)", lineHeight: 1.65, margin: 0 }}>
+              {mentorRaw}
+            </p>
+          ) : (
             <div className="serif" style={{ fontSize: "0.9rem", fontStyle: "italic", color: "var(--silver)", textAlign: "center" }}>
               {archetype.name} is contemplating...
             </div>
-          ) : (
-            <>
-              <AnimatedText text={mentorParsed.text} color={archetype.color} />
-              <QuoteBlock quote={mentorParsed.quote} author={mentorParsed.author} color={archetype.color} />
-            </>
           )}
         </div>
 
-        {!mentorLoading && mentorRaw && archetype?.promise && (
-          <div className="animate-fadeUp" style={{ padding: "1.2rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, marginBottom: 16 }}>
+        {/* Quote */}
+        {aspirationalQuote && (
+          <div style={{ borderLeft: "2px solid var(--gold)", paddingLeft: 14, marginBottom: 14 }}>
+            <p className="serif" style={{ fontSize: "0.95rem", color: "var(--cream)", fontStyle: "italic", lineHeight: 1.55, marginBottom: 6 }}>
+              "{aspirationalQuote.text}"
+            </p>
+            <p className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)", letterSpacing: "0.2em", textTransform: "uppercase" }}>
+              — {aspirationalQuote.author}
+            </p>
+          </div>
+        )}
+
+        {/* Promise */}
+        {aspirationalPromise && (
+          <div className="animate-fadeUp" style={{ padding: "1rem 1.2rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, marginBottom: 18 }}>
             <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>
               The Promise
             </div>
-            <AnimatedText text={archetype.promise} color={archetype.color} />
+            <AnimatedText text={aspirationalPromise} color={archetype.color} />
           </div>
         )}
 

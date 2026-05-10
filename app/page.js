@@ -13,6 +13,17 @@ import {
   buildShadowEncounterPrompt, buildAspirationalPrompt,
   passagePhrase, recoveryBandPhrase,
 } from "../lib/constants";
+import {
+  DOMAINS,
+  getDomain,
+  getDomainList,
+  getQuestions,
+  diagnoseProblem,
+  getProblem,
+  getFirstMessage,
+  getActivities,
+  getHeroScene,
+} from "../lib/config/onboarding";
 
 async function fetchMentor(systemPrompt, userPrompt) {
   try {
@@ -197,6 +208,95 @@ function ShadowIndicator({ recoveryScore, shadowName, onClick }) {
   );
 }
 
+// Card component for the recommended-only mentor selection screen.
+// Used both for the prominent recommended card and the disclosed grid of others.
+function ArchetypeCard({ archetype, recommended, firstMessage, selected, onPick, onPlayPreview, compact }) {
+  const previewLine = firstMessage
+    ? firstMessage.split(/\.\s+/)[0].replace(/\.$/, "") + "."
+    : null;
+  return (
+    <div
+      onClick={onPick}
+      style={{
+        padding: compact ? "0.85rem 1rem" : "1.1rem 1.2rem",
+        background: selected ? `${archetype.color}25` : "var(--deep)",
+        border: `1px solid ${selected ? archetype.color : "rgba(255,255,255,0.06)"}`,
+        cursor: "pointer",
+        marginBottom: compact ? 0 : 8,
+        transition: "background 0.2s, border-color 0.2s",
+      }}
+    >
+      <div
+        className="mono"
+        style={{
+          fontSize: "8px",
+          letterSpacing: "0.2em",
+          color: archetype.color,
+          textTransform: "uppercase",
+          marginBottom: 4,
+        }}
+      >
+        {archetype.figure}
+        {recommended && (
+          <span style={{ marginLeft: 8, color: "var(--gold)" }}>★ RECOMMENDED</span>
+        )}
+      </div>
+      <div
+        className="serif"
+        style={{
+          fontSize: compact ? "1rem" : "1.25rem",
+          color: "var(--cream)",
+          marginBottom: 4,
+        }}
+      >
+        {archetype.name}
+      </div>
+      <div
+        style={{
+          fontSize: "0.78rem",
+          color: "var(--silver)",
+          marginBottom: 8,
+          lineHeight: 1.5,
+        }}
+      >
+        {archetype.desc}
+      </div>
+      {!compact && previewLine && (
+        <div
+          style={{
+            fontSize: "0.82rem",
+            color: "var(--cream)",
+            fontStyle: "italic",
+            borderLeft: `2px solid ${archetype.color}`,
+            paddingLeft: 10,
+            marginTop: 10,
+            lineHeight: 1.5,
+          }}
+        >
+          "{previewLine}"
+        </div>
+      )}
+      <button
+        onClick={(e) => { e.stopPropagation(); onPlayPreview(); }}
+        style={{
+          background: "transparent",
+          border: `1px solid ${archetype.color}55`,
+          color: archetype.color,
+          padding: "5px 12px",
+          marginTop: 10,
+          fontSize: "0.7rem",
+          fontFamily: "'Space Mono', monospace",
+          letterSpacing: "0.12em",
+          cursor: "pointer",
+          textTransform: "uppercase",
+        }}
+      >
+        ▶ Hear voice
+      </button>
+    </div>
+  );
+}
+
 export default function BurnoutDemo() {
   const [screen, setScreen] = useState("hero");
 
@@ -236,6 +336,18 @@ export default function BurnoutDemo() {
   const [returnTier, setReturnTier] = useState(null);
   const [returnDismissed, setReturnDismissed] = useState(false);
 
+  // Onboarding v2 — domain pick, scenario answers, problem diagnosis
+  const [selectedDomain, setSelectedDomain] = useState(null);
+  const [scenarioIdx, setScenarioIdx] = useState(0);
+  const [scenarioAnswers, setScenarioAnswers] = useState([]);
+  const [diagnosis, setDiagnosis] = useState(null);
+  const [showOtherMentors, setShowOtherMentors] = useState(false);
+  const [showOtherTones, setShowOtherTones] = useState(false);
+  // archetypeId → object URL of TTS audio for that archetype's first message
+  const [mentorPreviews, setMentorPreviews] = useState({});
+  // Activities use problemId-keyed completion (analog of completedByRealm).
+  const [completedByProblem, setCompletedByProblem] = useState({});
+
   // Centralized audio — singleton across all screens. See lib/AudioController.
   const audio = getAudioController();
   const mentorParsed = parseMentorMessage(mentorRaw);
@@ -247,11 +359,29 @@ export default function BurnoutDemo() {
     audio.onEnded(() => setIsPlaying(false));
   }, [audio]);
 
+  // Aspirational is now driven by the lookup-table first-message, not the
+  // Mistral pipeline — no prewarm needed.
+
+  // Preload the recommended archetype's voice preview when the archetype
+  // screen mounts. Lazy-load the others when the user clicks "Explore other
+  // guides".
   useEffect(() => {
-    if (screen === "tone" && tone && archetype && persona && profile && !muted) {
-      generateMentor("aspirational", {}, true);
+    if (screen === "archetype" && recommendedArchetype && diagnosis) {
+      preloadMentorPreview(recommendedArchetype.id);
     }
-  }, [screen, tone, archetype, persona, profile, muted]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, recommendedArchetype, diagnosis]);
+
+  useEffect(() => {
+    if (showOtherMentors && diagnosis && recommendedArchetype) {
+      ARCHETYPES.forEach(a => {
+        if (a.id !== recommendedArchetype.id && !mentorPreviews[a.id]) {
+          preloadMentorPreview(a.id);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showOtherMentors]);
 
   // Cache key builder. The same (archetype, day, kind, ctxKey) tuple should
   // never trigger Mistral or ElevenLabs twice.
@@ -411,10 +541,14 @@ export default function BurnoutDemo() {
       window.localStorage.setItem(key, new Date().toISOString().slice(0,10));
     }
 
-    setScreen("loading");
-    setLoadedCategories(0);
-    setLoadingCategoryIdx(0);
-    setLoadComplete(false);
+    // Skip the legacy "scanning 42 apps" loader. Go straight to domain pick.
+    setSelectedDomain(null);
+    setScenarioIdx(0);
+    setScenarioAnswers([]);
+    setDiagnosis(null);
+    setShowOtherMentors(false);
+    setShowOtherTones(false);
+    setScreen("domain-pick");
   };
 
   useEffect(() => {
@@ -430,30 +564,111 @@ export default function BurnoutDemo() {
     return () => clearTimeout(timer);
   }, [screen, loadingCategoryIdx]);
 
-  const handleGoToArchetype = () => {
+  // ─── Onboarding v2 handlers ────────────────────────────────────────
+  const handleDomainPick = (domainId) => {
     if (audio) audio.unlock();
-    const rec = recommendArchetype(persona);
+    setSelectedDomain(domainId);
+    setScenarioIdx(0);
+    setScenarioAnswers([]);
+    setScreen("scenario");
+  };
+
+  const handleScenarioAnswer = (optionId) => {
+    if (audio) audio.unlock();
+    const questions = getQuestions(selectedDomain);
+    const currentQ = questions[scenarioIdx];
+    const newAnswers = [...scenarioAnswers, { questionId: currentQ.id, optionId }];
+    setScenarioAnswers(newAnswers);
+
+    if (scenarioIdx + 1 < questions.length) {
+      setScenarioIdx(scenarioIdx + 1);
+    } else {
+      const result = diagnoseProblem(selectedDomain, newAnswers);
+      setDiagnosis(result);
+      setScreen("problem-reveal");
+    }
+  };
+
+  const handleAcceptProblem = () => {
+    if (audio) audio.unlock();
+    // For v1 the lookup table doesn't yet store "best archetype for this problem",
+    // so we fall back to the persona-based recommendation if we have one,
+    // otherwise the first archetype.
+    const rec = persona
+      ? recommendArchetype(persona)
+      : { archetype: ARCHETYPES[0], reasons: [] };
     setRecommendedArchetype(rec.archetype);
     setArchetype(rec.archetype);
     setArchetypeReasons(rec.reasons);
+    setShowOtherMentors(false);
+    // Reset preview cache when entering archetype selection so we don't
+    // play stale audio from a previous run.
+    setMentorPreviews({});
     setScreen("archetype");
+  };
+
+  // Pre-generate ElevenLabs TTS for an archetype's first-message in this
+  // problem, cache the resulting object URL keyed by archetype id.
+  const preloadMentorPreview = async (archetypeId) => {
+    if (!selectedDomain || !diagnosis) return;
+    if (mentorPreviews[archetypeId]) return; // already cached
+    const archetypeObj = ARCHETYPES.find(a => a.id === archetypeId);
+    const text = getFirstMessage(selectedDomain, diagnosis.problemId, archetypeId);
+    if (!archetypeObj || !text || !archetypeObj.voiceId) return;
+    const audioUrl = await fetchVoice(text, archetypeObj.voiceId);
+    if (!audioUrl) return;
+    setMentorPreviews(prev => ({ ...prev, [archetypeId]: audioUrl }));
+  };
+
+  const playMentorPreview = (archetypeId) => {
+    if (audio) audio.unlock();
+    const url = mentorPreviews[archetypeId];
+    if (!url) {
+      // Lazy-load if user hits play before preload finished.
+      preloadMentorPreview(archetypeId).then(() => {
+        const fresh = mentorPreviews[archetypeId];
+        if (fresh && audio) audio.play(fresh);
+      });
+      return;
+    }
+    if (audio) {
+      audio.stop();
+      audio.play(url);
+      setIsPlaying(true);
+    }
   };
 
   const handleConfirmArchetype = () => {
     if (audio) audio.unlock();
-    const rec = recommendTone(persona);
+    const rec = persona
+      ? recommendTone(persona)
+      : { tone: TONE_STYLES[0], reasons: [] };
     setRecommendedTone(rec.tone);
     setTone(rec.tone.id);
     setToneReasons(rec.reasons);
+    setShowOtherTones(false);
     setScreen("tone");
   };
 
+  // Aspirational now plays the chosen mentor's actual first message for the
+  // diagnosed problem, straight from the lookup table — no Mistral round-trip.
   const handleGoToAspirational = async () => {
     if (audio) { audio.unlock(); audio.stop(); }
     setIsPlaying(false);
     setMentorRaw("");
     setScreen("aspirational");
-    setTimeout(() => generateMentor("aspirational"), 400);
+    if (!selectedDomain || !diagnosis || !archetype) return;
+    const firstMsg = getFirstMessage(selectedDomain, diagnosis.problemId, archetype.id);
+    if (!firstMsg) return;
+    // Set as a bare bridge (no [concept] tag, no quote) so AnimatedText renders it.
+    setMentorRaw(firstMsg);
+    if (!muted && archetype.voiceId) {
+      const audioUrl = await fetchVoice(firstMsg, archetype.voiceId);
+      if (audioUrl && audio) {
+        await audio.play(audioUrl);
+        setIsPlaying(true);
+      }
+    }
   };
 
   const handleEnterDashboard = async () => {
@@ -462,6 +677,22 @@ export default function BurnoutDemo() {
     setMentorRaw("");
     setScreen("dashboard");
     setTimeout(() => generateMentor("realm_briefing"), 400);
+  };
+
+  // Activity completion (lookup-table driven, keyed off problemId).
+  const completeActivity = (activity, idx) => {
+    if (!diagnosis) return;
+    const pid = diagnosis.problemId;
+    const pts = 10;
+    setRecoveryScore(s => Math.min(100, s + 3));
+    setTotalPoints(t => t + pts);
+    setCompletedByProblem(c => ({
+      ...c,
+      [pid]: [...(c[pid] || []), `${idx}`],
+    }));
+    setHistory(h => [...h, {
+      day, quest: activity.name, status: "done", points: pts, realm: pid,
+    }]);
   };
 
   const completeQuest = async (quest, realmIdx, questIdx) => {
@@ -567,6 +798,143 @@ export default function BurnoutDemo() {
           </p>
         </div>
 
+      </div>
+    );
+  }
+
+  // ─── DOMAIN PICK (onboarding v2 step 1) ────────────────────────────
+  if (screen === "domain-pick") {
+    const domains = getDomainList();
+    return (
+      <div className="shell" style={{ padding: "2.5rem 1.5rem" }}>
+        <div className="section-label">FIRST QUESTION</div>
+        <h2 className="serif" style={{ fontSize: "1.5rem", color: "var(--cream)", marginBottom: 8 }}>
+          {userName}, where do you want help?
+        </h2>
+        <p style={{ fontSize: "0.85rem", color: "var(--silver)", marginBottom: 22, lineHeight: 1.5 }}>
+          Pick the area that's heaviest. We'll narrow from there.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {domains.map(d => (
+            <button
+              key={d.id}
+              onClick={() => handleDomainPick(d.id)}
+              style={{
+                padding: "1.1rem 1rem",
+                background: "var(--deep)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                textAlign: "left",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                color: "inherit",
+              }}
+            >
+              <div className="serif" style={{ fontSize: "1.05rem", color: "var(--cream)", marginBottom: 4 }}>
+                {d.name}
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "var(--silver)", lineHeight: 1.45 }}>
+                {d.blurb}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── SCENARIO QUESTIONS (onboarding v2 step 2) ─────────────────────
+  if (screen === "scenario") {
+    const questions = getQuestions(selectedDomain);
+    const q = questions[scenarioIdx];
+    const domain = getDomain(selectedDomain);
+    const total = questions.length;
+    if (!q || !domain) return null;
+    return (
+      <div className="shell" style={{ padding: "2.5rem 1.5rem" }}>
+        <div className="section-label">
+          {domain.name.toUpperCase()} · {scenarioIdx + 1} OF {total}
+        </div>
+        <div style={{ height: 2, background: "rgba(255,255,255,0.06)", marginBottom: 22 }}>
+          <div style={{
+            width: `${(scenarioIdx / total) * 100}%`,
+            height: "100%",
+            background: "var(--gold)",
+            transition: "width 0.4s",
+          }} />
+        </div>
+        <h2 className="serif" style={{ fontSize: "1.2rem", color: "var(--cream)", marginBottom: 20, lineHeight: 1.45 }}>
+          {q.prompt}
+        </h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {q.options.map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => handleScenarioAnswer(opt.id)}
+              style={{
+                padding: "1rem 1.1rem",
+                background: "var(--deep)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                color: "var(--cream)",
+                fontSize: "0.9rem",
+                textAlign: "left",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                lineHeight: 1.4,
+              }}
+            >
+              {opt.text}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── PROBLEM REVEAL (onboarding v2 step 3) ─────────────────────────
+  if (screen === "problem-reveal") {
+    const problem = diagnosis ? getProblem(selectedDomain, diagnosis.problemId) : null;
+    const runnerUp = diagnosis?.runnerUpId
+      ? getProblem(selectedDomain, diagnosis.runnerUpId)
+      : null;
+    if (!problem) return null;
+    return (
+      <div className="shell" style={{ padding: "2.5rem 1.5rem" }}>
+        <div className="section-label">WHAT WE'RE HEARING</div>
+        <h2 className="serif" style={{ fontSize: "1.6rem", color: "var(--cream)", marginBottom: 12 }}>
+          {problem.name}
+        </h2>
+        <p style={{ fontSize: "0.95rem", color: "var(--silver)", marginBottom: 20, lineHeight: 1.55 }}>
+          {problem.shortDescription}
+        </p>
+        {runnerUp && (
+          <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.4)", marginBottom: 22, fontStyle: "italic", lineHeight: 1.5 }}>
+            You may also be carrying — {runnerUp.name.toLowerCase()}.
+          </p>
+        )}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button className="btn-gold" onClick={handleAcceptProblem}>
+            THAT SOUNDS RIGHT →
+          </button>
+          <button
+            onClick={() => {
+              setScenarioIdx(0);
+              setScenarioAnswers([]);
+              setDiagnosis(null);
+              setScreen("domain-pick");
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--silver)",
+              fontSize: "0.78rem",
+              fontFamily: "inherit",
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            Pick a different area
+          </button>
+        </div>
       </div>
     );
   }
@@ -760,141 +1128,162 @@ export default function BurnoutDemo() {
     );
   }
 
-  // ─── ARCHETYPE ─────────────────────────────────────────────────────
+  // ─── ARCHETYPE (recommended-only with progressive disclosure) ──────
   if (screen === "archetype") {
-    const isRecSelected = archetype?.id === recommendedArchetype.id;
+    if (!recommendedArchetype) return null;
+    const others = ARCHETYPES.filter(a => a.id !== recommendedArchetype.id);
+    const firstMsgFor = (aid) =>
+      diagnosis ? getFirstMessage(selectedDomain, diagnosis.problemId, aid) : "";
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
-        <div className="section-label">WHO SHOWS UP FOR YOU</div>
-        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>These walk with people becoming what you could become.</h2>
-        <p style={{ fontSize: "0.8rem", color: "var(--silver)", marginBottom: 18 }}>
-          Drawn from the gifts you bring — temperament, agency, the work you do.
-        </p>
+        <div className="section-label">YOUR GUIDE</div>
+        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 14 }}>
+          We suggest {recommendedArchetype.name}.
+        </h2>
 
-        {/* Recommended card — now clickable to re-select after picking another */}
-        <div
-          onClick={() => setArchetype(recommendedArchetype)}
-          style={{
-            cursor: "pointer",
-            padding: "1.2rem",
-            background: recommendedArchetype.color + (isRecSelected ? "25" : "15"),
-            border: `${isRecSelected ? "2px" : "1px"} solid ${recommendedArchetype.color}`,
-            marginBottom: 16,
-            position: "relative",
-            transition: "background 0.2s, border-color 0.2s",
-          }}>
-          <div className="mono" style={{ position: "absolute", top: -8, right: 12, padding: "2px 10px", background: recommendedArchetype.color, color: "var(--void)", fontSize: "8px", letterSpacing: "0.2em", fontWeight: 700 }}>
-            {isRecSelected ? "FIRST CHOICE · CHOSEN" : "FIRST CHOICE"}
-          </div>
+        <ArchetypeCard
+          archetype={recommendedArchetype}
+          recommended
+          firstMessage={firstMsgFor(recommendedArchetype.id)}
+          selected={archetype?.id === recommendedArchetype.id}
+          onPick={() => setArchetype(recommendedArchetype)}
+          onPlayPreview={() => playMentorPreview(recommendedArchetype.id)}
+        />
 
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-            <Mandala archetypeId={recommendedArchetype.id} color={recommendedArchetype.color} concept="still" size={140} />
-          </div>
+        {!showOtherMentors && (
+          <button
+            onClick={() => setShowOtherMentors(true)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--silver)",
+              fontSize: "0.85rem",
+              textDecoration: "underline",
+              margin: "16px 0",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              padding: 0,
+            }}
+          >
+            ▼  Explore other guides
+          </button>
+        )}
 
-          <div style={{ textAlign: "center", marginBottom: 10 }}>
-            <h3 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)" }}>{recommendedArchetype.name}</h3>
-            <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: recommendedArchetype.color, textTransform: "uppercase" }}>{recommendedArchetype.figure}</div>
-            <div className="serif" style={{ fontSize: "0.88rem", fontStyle: "italic", color: "var(--gold-light)", marginTop: 2 }}>{recommendedArchetype.epithet}</div>
-          </div>
-
-          <p style={{ fontSize: "0.82rem", color: "var(--mist)", lineHeight: 1.6, marginBottom: 10, textAlign: "center" }}>{recommendedArchetype.desc}</p>
-
-          <div onClick={(e) => { e.stopPropagation(); toggleWhy("arch_rec"); }} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: "0.72rem", color: recommendedArchetype.color, fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-            <span>WHY {recommendedArchetype.name.toUpperCase()} COMES TO YOU</span>
-            <span>{expandedWhy.arch_rec ? "−" : "+"}</span>
-          </div>
-
-          {expandedWhy.arch_rec && (
-            <div className="animate-fadeUp" style={{ marginTop: 8 }}>
-              {archetypeReasons.map((r, i) => (
-                <div key={i} className="why-card">
-                  <div style={{ fontSize: "0.78rem", color: "var(--silver)", fontStyle: "italic", lineHeight: 1.5 }}>· {r.note}</div>
-                </div>
+        {showOtherMentors && (
+          <>
+            <div className="section-label" style={{ marginTop: 22 }}>OTHER GUIDES</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {others.map(a => (
+                <ArchetypeCard
+                  key={a.id}
+                  archetype={a}
+                  recommended={false}
+                  firstMessage={firstMsgFor(a.id)}
+                  selected={archetype?.id === a.id}
+                  onPick={() => setArchetype(a)}
+                  onPlayPreview={() => playMentorPreview(a.id)}
+                  compact
+                />
               ))}
             </div>
-          )}
-        </div>
+          </>
+        )}
 
-        <div className="section-label">OR CHOOSE A DIFFERENT WALKER</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 20 }}>
-          {ARCHETYPES.map(a => {
-            const isSel = archetype?.id === a.id;
-            const isRec = a.id === recommendedArchetype.id;
-            return (
-              <div key={a.id} onClick={() => setArchetype(a)} style={{
-                padding: "10px", cursor: "pointer",
-                background: isSel ? a.color + "25" : "var(--slate)",
-                border: `1px solid ${isSel ? a.color : a.color + "30"}`,
-                position: "relative",
-              }}>
-                {isRec && <div style={{ position: "absolute", top: 4, right: 6, fontSize: "7px", color: a.color, fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em" }}>★</div>}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: a.color, boxShadow: `0 0 8px ${a.color}` }} />
-                  <div className="serif" style={{ fontSize: "0.9rem", color: "var(--cream)" }}>{a.name}</div>
-                </div>
-                <div className="mono" style={{ fontSize: "7px", letterSpacing: "0.15em", color: a.color, textTransform: "uppercase" }}>{a.figure}</div>
-              </div>
-            );
-          })}
-        </div>
-
-        <button className="btn-gold" onClick={handleConfirmArchetype}>WALK WITH {archetype.name.toUpperCase()} →</button>
+        <button className="btn-gold" onClick={handleConfirmArchetype} style={{ marginTop: 22 }}>
+          BEGIN WITH {(archetype?.name || recommendedArchetype.name).toUpperCase()} →
+        </button>
       </div>
     );
   }
 
-  // ─── TONE ──────────────────────────────────────────────────────────
+  // ─── TONE (recommended-only with progressive disclosure) ───────────
   if (screen === "tone") {
+    if (!recommendedTone) return null;
+    const others = TONE_STYLES.filter(t => t.id !== recommendedTone.id);
+
+    const renderToneCard = (t, { recommended, compact }) => {
+      const isSel = tone === t.id;
+      return (
+        <div
+          key={t.id}
+          onClick={() => setTone(t.id)}
+          style={{
+            padding: compact ? "0.85rem 1rem" : "1rem 1.1rem",
+            background: isSel ? "var(--charcoal)" : "var(--deep)",
+            border: `1px solid ${isSel ? archetype.color : "rgba(255,255,255,0.06)"}`,
+            cursor: "pointer",
+            position: "relative",
+            marginBottom: compact ? 0 : 8,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <span className="serif" style={{ fontSize: "1.15rem", color: isSel ? archetype.color : "var(--silver)" }}>{t.icon}</span>
+            <span className="mono" style={{ fontSize: "9px", letterSpacing: "0.18em", color: isSel ? archetype.color : "var(--mist)", textTransform: "uppercase" }}>{t.label}</span>
+            {recommended && (
+              <span className="mono" style={{ marginLeft: "auto", fontSize: "8px", letterSpacing: "0.18em", color: "var(--gold)" }}>★ RECOMMENDED</span>
+            )}
+          </div>
+          <p style={{ fontSize: "0.76rem", color: "var(--silver)", marginBottom: 8, lineHeight: 1.45 }}>{t.desc}</p>
+          {!compact && (
+            <div style={{
+              padding: "0.6rem",
+              background: "rgba(0,0,0,0.3)",
+              borderLeft: `2px solid ${archetype.color}`,
+              fontSize: "0.78rem",
+              fontFamily: "'Cormorant Garamond', serif",
+              fontStyle: "italic",
+              color: "var(--cream)",
+              lineHeight: 1.5,
+            }}>
+              "{t.example}"
+            </div>
+          )}
+        </div>
+      );
+    };
+
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
-        <div className="section-label">How should {archetype.name} speak?</div>
-        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 4 }}>Choose Your Voice</h2>
-        <p style={{ fontSize: "0.8rem", color: "var(--silver)", marginBottom: 18 }}>Same archetype. Three registers.</p>
+        <div className="section-label">YOUR VOICE</div>
+        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 14 }}>
+          We suggest the {recommendedTone.label?.toLowerCase() || recommendedTone.id} register.
+        </h2>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {TONE_STYLES.map(t => {
-            const isRec = recommendedTone?.id === t.id;
-            return (
-              <div key={t.id} onClick={() => setTone(t.id)} style={{
-                padding: "0.95rem",
-                background: tone === t.id ? "var(--charcoal)" : "var(--slate)",
-                border: tone === t.id ? "1px solid var(--gold)" : "1px solid rgba(255,255,255,0.06)",
-                cursor: "pointer", position: "relative",
-              }}>
-                {isRec && <div className="mono" style={{ position: "absolute", top: -8, right: 10, padding: "2px 8px", background: "var(--gold)", color: "var(--void)", fontSize: "7px", letterSpacing: "0.2em", fontWeight: 700 }}>BEST FIT</div>}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                  <span className="serif" style={{ fontSize: "1.2rem", color: tone === t.id ? "var(--gold)" : "var(--silver)" }}>{t.icon}</span>
-                  <span className="mono" style={{ fontSize: "10px", letterSpacing: "0.15em", color: tone === t.id ? "var(--gold)" : "var(--mist)", textTransform: "uppercase" }}>{t.label}</span>
-                </div>
-                <p style={{ fontSize: "0.76rem", color: "var(--silver)", marginBottom: 8 }}>{t.desc}</p>
-                <div style={{ padding: "0.6rem", background: "rgba(0,0,0,0.3)", borderLeft: `2px solid ${archetype.color}`, fontSize: "0.76rem", fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", color: "var(--cream)" }}>
-                  "{t.example}"
-                </div>
-                {isRec && (
-                  <div onClick={(e) => { e.stopPropagation(); toggleWhy("tone"); }} style={{ cursor: "pointer", marginTop: 8, padding: "4px 0", fontSize: "0.68rem", color: "var(--gold)", fontFamily: "'Space Mono', monospace", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                    {expandedWhy.tone ? "− hide reasoning" : "+ WHY THIS REGISTER FOR YOU"}
-                  </div>
-                )}
-                {isRec && expandedWhy.tone && (
-                  <div className="animate-fadeUp">
-                    {toneReasons.map((r, i) => (
-                      <div key={i} className="why-card">
-                        <div style={{ fontSize: "0.78rem", color: "var(--silver)", fontStyle: "italic", lineHeight: 1.5 }}>· {r.note}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {renderToneCard(recommendedTone, { recommended: true, compact: false })}
 
-        {tone && (
-          <button className="btn-gold" style={{ marginTop: 16 }} onClick={handleGoToAspirational}>
-            MEET WHAT YOU COULD BECOME →
+        {!showOtherTones && (
+          <button
+            onClick={() => setShowOtherTones(true)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--silver)",
+              fontSize: "0.85rem",
+              textDecoration: "underline",
+              margin: "16px 0",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              padding: 0,
+            }}
+          >
+            ▼  Explore other voices
           </button>
         )}
 
+        {showOtherTones && (
+          <>
+            <div className="section-label" style={{ marginTop: 22 }}>OTHER VOICES</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {others.map(t => renderToneCard(t, { recommended: false, compact: true }))}
+            </div>
+          </>
+        )}
+
+        {tone && (
+          <button className="btn-gold" style={{ marginTop: 22 }} onClick={handleGoToAspirational}>
+            MEET WHAT YOU COULD BECOME →
+          </button>
+        )}
       </div>
     );
   }
@@ -941,9 +1330,21 @@ export default function BurnoutDemo() {
 
   // ─── DASHBOARD — ONE hero animation per page ──────────────────────
   if (screen === "dashboard") {
-    const realm = orderedRealms[activeRealmIdx];
-    const completedCount = (completedByRealm[realm.id] || []).length;
+    // Onboarding-v2 dashboard is driven by the diagnosed problem, not the
+    // realm cycle. We still resolve `realm` so the existing mentor-briefing
+    // pipeline keeps working (it builds prompts from realm metadata).
+    const realm = orderedRealms[activeRealmIdx] || REALMS[0];
     const isTopPriority = activeRealmIdx === 0;
+    const heroSceneId = (selectedDomain && diagnosis)
+      ? getHeroScene(selectedDomain, diagnosis.problemId)
+      : null;
+    const activities = (selectedDomain && diagnosis)
+      ? getActivities(selectedDomain, diagnosis.problemId)
+      : [];
+    const problem = (selectedDomain && diagnosis)
+      ? getProblem(selectedDomain, diagnosis.problemId)
+      : null;
+    const problemDoneIdx = problem ? (completedByProblem[problem.id] || []) : [];
 
     return (
       <div className="shell" style={{ padding: "1.2rem 1.4rem 2rem" }}>
@@ -982,22 +1383,26 @@ export default function BurnoutDemo() {
           </span>
         </div>
 
-        {/* Realm Banner */}
-        <div style={{ marginBottom: 10, padding: "0.8rem 1rem", background: realm.color + "10", border: `1px solid ${realm.color}40` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: realm.color, textTransform: "uppercase" }}>TODAY'S TERRAIN</div>
-              <div className="serif" style={{ fontSize: "1.2rem", color: "var(--cream)" }}>{realm.icon} {realm.name}</div>
-              <div style={{ fontSize: "0.72rem", color: realm.color, marginTop: 1 }}>{realm.sub}</div>
+        {/* Problem banner — driven by diagnosis, not realm cycle */}
+        {problem && (
+          <div style={{ marginBottom: 10, padding: "0.8rem 1rem", background: archetype.color + "10", border: `1px solid ${archetype.color}40` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: archetype.color, textTransform: "uppercase" }}>YOUR PRACTICE</div>
+                <div className="serif" style={{ fontSize: "1.2rem", color: "var(--cream)" }}>{problem.name}</div>
+                <div style={{ fontSize: "0.72rem", color: "var(--silver)", marginTop: 2, lineHeight: 1.45 }}>{problem.shortDescription}</div>
+              </div>
+              {isTopPriority && <div className="mono" style={{ fontSize: "7px", padding: "2px 8px", background: "var(--gold)", color: "var(--void)", letterSpacing: "0.15em", fontWeight: 700, whiteSpace: "nowrap" }}>BEGIN HERE</div>}
             </div>
-            {isTopPriority && <div className="mono" style={{ fontSize: "7px", padding: "2px 8px", background: "var(--gold)", color: "var(--void)", letterSpacing: "0.15em", fontWeight: 700 }}>BEGIN HERE</div>}
           </div>
-        </div>
+        )}
 
-        {/* THE ONE HERO ANIMATION — signature scene per realm */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
-          <SignatureScene id={realm.id} size={360} />
-        </div>
+        {/* THE ONE HERO ANIMATION — signature scene for the diagnosed problem */}
+        {heroSceneId && (
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+            <SignatureScene sceneId={heroSceneId} size={360} />
+          </div>
+        )}
 
         {/* Mentor message — bridge text + quote — with the archetype mandala beside it */}
         <div style={{ padding: "0.9rem 1rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, marginBottom: 14, minHeight: 80, display: "flex", gap: 12, alignItems: "flex-start" }}>
@@ -1021,54 +1426,39 @@ export default function BurnoutDemo() {
           </div>
         </div>
 
-        {/* Realm navigation — 5 realms as tabs */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
-          {orderedRealms.map((r, i) => (
-            <div key={i} onClick={() => switchRealm(i)}
-              style={{
-                flex: 1, padding: "8px 4px", textAlign: "center", cursor: "pointer",
-                background: i === activeRealmIdx ? r.color + "20" : "var(--slate)",
-                border: `1px solid ${i === activeRealmIdx ? r.color : "rgba(255,255,255,0.04)"}`,
-                position: "relative",
-              }}>
-              {i === 0 && <div style={{ position: "absolute", top: -4, right: -2, width: 6, height: 6, borderRadius: "50%", background: "var(--gold)", boxShadow: "0 0 6px var(--gold)" }} />}
-              <div style={{ fontSize: "1rem", color: r.color }}>{r.icon}</div>
-              <div className="mono" style={{ fontSize: "6px", color: i === activeRealmIdx ? r.color : "var(--silver)", letterSpacing: "0.1em" }}>{r.label.split(" ")[1]}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Quest cards — NO mini-animations. Just text + actions */}
-        <div style={{ marginBottom: 12 }}>
-          {realm.quests.map((quest, qi) => {
-            const done = (completedByRealm[realm.id] || []).includes(`${qi}`);
-            return (
-              <div key={qi} style={{
-                padding: "0.85rem 1rem",
-                background: done ? "rgba(201,168,76,0.05)" : "var(--slate)",
-                border: `1px solid ${done ? "var(--gold-dim)" : "rgba(255,255,255,0.04)"}`,
-                marginBottom: 4, opacity: done ? 0.65 : 1,
-              }}>
-                <div style={{ fontSize: "0.88rem", color: "var(--cream)", marginBottom: 4, lineHeight: 1.3 }}>{quest.title}</div>
-                <div style={{ fontSize: "0.72rem", color: "var(--silver)", marginBottom: 8, lineHeight: 1.5, fontStyle: "italic" }}>{quest.why}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <span className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)" }}>⏱ {quest.time}m</span>
+        {/* Activities — config-driven, keyed by diagnosed problem */}
+        {activities.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div className="section-label">YOUR PRACTICE</div>
+            {activities.map((a, i) => {
+              const done = problemDoneIdx.includes(`${i}`);
+              return (
+                <div key={a.id} style={{
+                  padding: "0.85rem 1rem",
+                  background: done ? "rgba(201,168,76,0.05)" : "var(--slate)",
+                  border: `1px solid ${done ? "var(--gold-dim)" : "rgba(255,255,255,0.04)"}`,
+                  marginBottom: 4, opacity: done ? 0.65 : 1,
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                    <div className="serif" style={{ color: "var(--cream)", fontSize: "0.95rem", lineHeight: 1.3 }}>
+                      {done ? "✓ " : ""}{a.name}
+                    </div>
+                    <div className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                      {a.cadence}
+                    </div>
                   </div>
+                  <div style={{ fontSize: "0.76rem", color: "var(--silver)", marginBottom: 8, lineHeight: 1.5, fontStyle: "italic" }}>{a.description}</div>
                   {!done && (
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button onClick={() => completeQuest(quest, activeRealmIdx, qi)}
-                        style={{ padding: "5px 12px", border: `1px solid ${realm.color}`, background: "transparent", color: realm.color, fontSize: "0.7rem", fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>DONE</button>
-                      <button onClick={() => skipQuest(quest, activeRealmIdx, qi)}
-                        style={{ padding: "5px 12px", border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "var(--silver)", fontSize: "0.7rem", fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>SKIP</button>
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+                      <button onClick={() => completeActivity(a, i)}
+                        style={{ padding: "5px 12px", border: `1px solid ${archetype.color}`, background: "transparent", color: archetype.color, fontSize: "0.7rem", fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>DONE</button>
                     </div>
                   )}
-                  {done && <span className="mono" style={{ fontSize: "9px", color: "var(--gold)" }}>✓</span>}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Actions */}
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import Mandala from "../lib/Mandala";
 import SignatureScene from "../lib/SignatureScene";
 import { getAudioController } from "../lib/AudioController";
-import { selectQuote, formatQuoteForSpeech } from "../lib/quotes";
+import { selectQuote, selectQuoteByTags, formatQuoteForSpeech } from "../lib/quotes";
 import {
   PERSONAS, ASSESSMENT_CATEGORIES, usernameToPersona, computeProfile,
   ARCHETYPES, TONE_STYLES, REALMS, RECOVERY_STAGES,
@@ -23,7 +23,14 @@ import {
   getFirstMessage,
   getActivities,
   getHeroScene,
+  getJourney,
 } from "../lib/config/onboarding";
+import {
+  VOICES,
+  getVoice,
+  getRecommendedVoice,
+  ARCHETYPE_VOICE_SUGGESTION,
+} from "../lib/config/voices";
 
 async function fetchMentor(systemPrompt, userPrompt) {
   try {
@@ -297,6 +304,74 @@ function ArchetypeCard({ archetype, recommended, firstMessage, selected, onPick,
   );
 }
 
+function VoiceCard({ voice, recommended, selected, onPick, onPlay, compact }) {
+  return (
+    <div
+      onClick={onPick}
+      style={{
+        padding: compact ? "0.85rem 1rem" : "1.1rem 1.2rem",
+        background: selected ? "rgba(201,168,76,0.12)" : "var(--deep)",
+        border: `1px solid ${selected ? "var(--gold)" : "rgba(255,255,255,0.06)"}`,
+        cursor: "pointer",
+        marginBottom: compact ? 0 : 8,
+        transition: "background 0.2s, border-color 0.2s",
+      }}
+    >
+      <div
+        className="mono"
+        style={{
+          fontSize: "8px",
+          letterSpacing: "0.2em",
+          color: "var(--silver)",
+          textTransform: "uppercase",
+          marginBottom: 4,
+        }}
+      >
+        {voice.gender} · {voice.pace}
+        {recommended && (
+          <span style={{ marginLeft: 8, color: "var(--gold)" }}>★ RECOMMENDED</span>
+        )}
+      </div>
+      <div
+        className="serif"
+        style={{
+          fontSize: compact ? "1rem" : "1.2rem",
+          color: "var(--cream)",
+          marginBottom: 4,
+        }}
+      >
+        {voice.name}
+      </div>
+      <div
+        style={{
+          fontSize: "0.78rem",
+          color: "var(--silver)",
+          marginBottom: 8,
+          lineHeight: 1.45,
+        }}
+      >
+        {voice.description}
+      </div>
+      <button
+        onClick={(e) => { e.stopPropagation(); onPlay(); }}
+        style={{
+          background: "transparent",
+          border: "1px solid rgba(255,255,255,0.18)",
+          color: "var(--cream)",
+          padding: "5px 12px",
+          fontSize: "0.7rem",
+          fontFamily: "'Space Mono', monospace",
+          letterSpacing: "0.12em",
+          cursor: "pointer",
+          textTransform: "uppercase",
+        }}
+      >
+        ▶ Hear it
+      </button>
+    </div>
+  );
+}
+
 export default function BurnoutDemo() {
   const [screen, setScreen] = useState("hero");
 
@@ -345,6 +420,11 @@ export default function BurnoutDemo() {
   const [showOtherTones, setShowOtherTones] = useState(false);
   // archetypeId → object URL of TTS audio for that archetype's first message
   const [mentorPreviews, setMentorPreviews] = useState({});
+  // Voice (decoupled from mentor): independent picker between archetype + tone
+  const [selectedVoice, setSelectedVoice] = useState(null);
+  const [showOtherVoices, setShowOtherVoices] = useState(false);
+  // voiceId-keyed cache of TTS for the diagnosed first message in each voice
+  const [voicePreviews, setVoicePreviews] = useState({});
   // Activities use problemId-keyed completion (analog of completedByRealm).
   const [completedByProblem, setCompletedByProblem] = useState({});
 
@@ -382,6 +462,28 @@ export default function BurnoutDemo() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showOtherMentors]);
+
+  // Voice screen: preload recommended voice on mount, lazy-load others
+  // when the "Try other voices" disclosure opens.
+  useEffect(() => {
+    if (screen === "voice" && archetype && diagnosis) {
+      const recId = ARCHETYPE_VOICE_SUGGESTION[archetype.id] || "steady-bass";
+      preloadVoicePreview(recId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, archetype, diagnosis]);
+
+  useEffect(() => {
+    if (showOtherVoices && archetype && diagnosis) {
+      const recId = ARCHETYPE_VOICE_SUGGESTION[archetype.id] || "steady-bass";
+      VOICES.forEach(v => {
+        if (v.id !== recId && !voicePreviews[v.id]) {
+          preloadVoicePreview(v.id);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showOtherVoices]);
 
   // Cache key builder. The same (archetype, day, kind, ctxKey) tuple should
   // never trigger Mistral or ElevenLabs twice.
@@ -504,8 +606,12 @@ export default function BurnoutDemo() {
       const punct = /[.!?]\s*$/.test(speakingText) ? speakingText : `${speakingText}.`;
       speakingText = `${punct} ${promiseSpoken}`;
     }
-    if (archetype?.voiceId && !muted) {
-      audioUrl = await fetchVoice(speakingText, archetype.voiceId);
+    // Route TTS through the user-picked voice (decoupled from mentor in
+    // onboarding v2.1). Falls back to the archetype's default voice if the
+    // user hasn't reached the voice screen yet.
+    const ttsVoiceId = selectedVoice?.voiceId || archetype?.voiceId;
+    if (ttsVoiceId && !muted) {
+      audioUrl = await fetchVoice(speakingText, ttsVoiceId);
       if (!prewarm && audio && audio.isStale(myReqId)) return;
     }
 
@@ -638,7 +744,19 @@ export default function BurnoutDemo() {
     }
   };
 
+  // After picking the mentor, route to the voice picker (decoupled from
+  // mentor in onboarding v2.1). Tone follows after voice.
   const handleConfirmArchetype = () => {
+    if (audio) audio.unlock();
+    if (!archetype) return;
+    const recVoice = getRecommendedVoice(archetype.id);
+    setSelectedVoice(recVoice);
+    setShowOtherVoices(false);
+    setVoicePreviews({});
+    setScreen("voice");
+  };
+
+  const handleConfirmVoice = () => {
     if (audio) audio.unlock();
     const rec = persona
       ? recommendTone(persona)
@@ -650,8 +768,40 @@ export default function BurnoutDemo() {
     setScreen("tone");
   };
 
-  // Aspirational now plays the chosen mentor's actual first message for the
-  // diagnosed problem, straight from the lookup table — no Mistral round-trip.
+  // Voice preview = the diagnosed first message TTS'd in this voice. Same
+  // text across all six voices, so the comparison is meaningful.
+  const preloadVoicePreview = async (voiceId) => {
+    if (!selectedDomain || !diagnosis || !archetype) return;
+    if (voicePreviews[voiceId]) return;
+    const voice = getVoice(voiceId);
+    const text = getFirstMessage(selectedDomain, diagnosis.problemId, archetype.id);
+    if (!voice || !text) return;
+    const audioUrl = await fetchVoice(text, voice.voiceId);
+    if (!audioUrl) return;
+    setVoicePreviews(prev => ({ ...prev, [voiceId]: audioUrl }));
+  };
+
+  const playVoicePreview = (voiceId) => {
+    if (audio) audio.unlock();
+    const url = voicePreviews[voiceId];
+    if (!url) {
+      preloadVoicePreview(voiceId).then(() => {
+        const fresh = voicePreviews[voiceId];
+        if (fresh && audio) audio.play(fresh);
+      });
+      return;
+    }
+    if (audio) {
+      audio.stop();
+      audio.play(url);
+      setIsPlaying(true);
+    }
+  };
+
+  // Aspirational plays the chosen mentor's actual first message for the
+  // diagnosed problem AND the archetype's spoken promise — concatenated as
+  // one continuous TTS read. Routed through `selectedVoice` so the user
+  // hears the voice they picked, not the archetype's default.
   const handleGoToAspirational = async () => {
     if (audio) { audio.unlock(); audio.stop(); }
     setIsPlaying(false);
@@ -660,10 +810,16 @@ export default function BurnoutDemo() {
     if (!selectedDomain || !diagnosis || !archetype) return;
     const firstMsg = getFirstMessage(selectedDomain, diagnosis.problemId, archetype.id);
     if (!firstMsg) return;
-    // Set as a bare bridge (no [concept] tag, no quote) so AnimatedText renders it.
-    setMentorRaw(firstMsg);
-    if (!muted && archetype.voiceId) {
-      const audioUrl = await fetchVoice(firstMsg, archetype.voiceId);
+    // Strip the markdown emphasis asterisks the promise uses for visual
+    // emphasis — they should not be spoken aloud.
+    const promiseSpoken = archetype.promise
+      ? archetype.promise.replace(/\*([^*]+)\*/g, "$1")
+      : "";
+    const fullText = promiseSpoken ? `${firstMsg}\n\n${promiseSpoken}` : firstMsg;
+    setMentorRaw(fullText);
+    const voiceForTts = selectedVoice?.voiceId || archetype.voiceId;
+    if (!muted && voiceForTts) {
+      const audioUrl = await fetchVoice(fullText, voiceForTts);
       if (audioUrl && audio) {
         await audio.play(audioUrl);
         setIsPlaying(true);
@@ -890,30 +1046,56 @@ export default function BurnoutDemo() {
     );
   }
 
-  // ─── PROBLEM REVEAL (onboarding v2 step 3) ─────────────────────────
+  // ─── PROBLEM REVEAL (THE RIDE AHEAD) ───────────────────────────────
   if (screen === "problem-reveal") {
     const problem = diagnosis ? getProblem(selectedDomain, diagnosis.problemId) : null;
+    const journey = diagnosis ? getJourney(selectedDomain, diagnosis.problemId) : null;
     const runnerUp = diagnosis?.runnerUpId
       ? getProblem(selectedDomain, diagnosis.runnerUpId)
       : null;
-    if (!problem) return null;
+    const runnerJourney = diagnosis?.runnerUpId
+      ? getJourney(selectedDomain, diagnosis.runnerUpId)
+      : null;
+    if (!problem || !journey) return null;
+    const openingQuote = selectQuoteByTags(
+      problem.quoteTags,
+      `reveal-${selectedDomain}-${diagnosis.problemId}`
+    );
     return (
-      <div className="shell" style={{ padding: "2.5rem 1.5rem" }}>
-        <div className="section-label">WHAT WE'RE HEARING</div>
-        <h2 className="serif" style={{ fontSize: "1.6rem", color: "var(--cream)", marginBottom: 12 }}>
-          {problem.name}
+      <div className="shell" style={{ padding: "2rem 1.5rem" }}>
+        <div className="section-label">THE RIDE AHEAD</div>
+
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+          <SignatureScene sceneId="who-stays" size={300} />
+        </div>
+
+        <h2 className="serif" style={{ fontSize: "1.5rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.3 }}>
+          {journey.title}
         </h2>
-        <p style={{ fontSize: "0.95rem", color: "var(--silver)", marginBottom: 20, lineHeight: 1.55 }}>
-          {problem.shortDescription}
+        <p style={{ fontSize: "0.95rem", color: "var(--silver)", marginBottom: 22, lineHeight: 1.55 }}>
+          {journey.opening}
         </p>
+
+        {openingQuote && (
+          <div style={{ borderLeft: "2px solid var(--gold)", paddingLeft: 14, marginBottom: 22 }}>
+            <p className="serif" style={{ fontSize: "0.95rem", color: "var(--cream)", fontStyle: "italic", lineHeight: 1.55, marginBottom: 6 }}>
+              "{openingQuote.text}"
+            </p>
+            <p className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)", letterSpacing: "0.2em", textTransform: "uppercase" }}>
+              — {openingQuote.author}
+            </p>
+          </div>
+        )}
+
         {runnerUp && (
           <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.4)", marginBottom: 22, fontStyle: "italic", lineHeight: 1.5 }}>
-            You may also be carrying — {runnerUp.name.toLowerCase()}.
+            You may also be carrying — {(runnerJourney?.title || runnerUp.name).toLowerCase().replace(/^from\s+/, "")}.
           </p>
         )}
+
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button className="btn-gold" onClick={handleAcceptProblem}>
-            THAT SOUNDS RIGHT →
+            BEGIN THE RIDE →
           </button>
           <button
             onClick={() => {
@@ -1191,6 +1373,72 @@ export default function BurnoutDemo() {
 
         <button className="btn-gold" onClick={handleConfirmArchetype} style={{ marginTop: 22 }}>
           BEGIN WITH {(archetype?.name || recommendedArchetype.name).toUpperCase()} →
+        </button>
+      </div>
+    );
+  }
+
+  // ─── VOICE (decoupled from mentor; recommended-only + disclosure) ──
+  if (screen === "voice") {
+    if (!archetype) return null;
+    const recVoiceId = ARCHETYPE_VOICE_SUGGESTION[archetype.id] || "steady-bass";
+    const recVoice = getVoice(recVoiceId);
+    const others = VOICES.filter(v => v.id !== recVoiceId);
+    return (
+      <div className="shell" style={{ padding: "2rem 1.5rem" }}>
+        <div className="section-label">THE VOICE</div>
+        <h2 className="serif" style={{ fontSize: "1.4rem", color: "var(--cream)", marginBottom: 14 }}>
+          How should {archetype.name} sound?
+        </h2>
+
+        <VoiceCard
+          voice={recVoice}
+          recommended
+          selected={selectedVoice?.id === recVoice.id}
+          onPick={() => setSelectedVoice(recVoice)}
+          onPlay={() => playVoicePreview(recVoice.id)}
+        />
+
+        {!showOtherVoices && (
+          <button
+            onClick={() => setShowOtherVoices(true)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--silver)",
+              fontSize: "0.85rem",
+              textDecoration: "underline",
+              margin: "16px 0",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              padding: 0,
+            }}
+          >
+            ▼  Try other voices
+          </button>
+        )}
+
+        {showOtherVoices && (
+          <>
+            <div className="section-label" style={{ marginTop: 22 }}>OTHER VOICES</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {others.map(v => (
+                <VoiceCard
+                  key={v.id}
+                  voice={v}
+                  recommended={false}
+                  selected={selectedVoice?.id === v.id}
+                  onPick={() => setSelectedVoice(v)}
+                  onPlay={() => playVoicePreview(v.id)}
+                  compact
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        <button className="btn-gold" onClick={handleConfirmVoice} style={{ marginTop: 22 }}>
+          CONTINUE WITH {(selectedVoice?.name || recVoice.name).toUpperCase()} →
         </button>
       </div>
     );

@@ -22,12 +22,13 @@ body {
   color: var(--mist);
   font-family: 'DM Sans', sans-serif;
   font-weight: 300;
+  font-size: 17px;
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
 }
 
 .shell {
-  max-width: 480px;
+  max-width: 720px;
   margin: 0 auto;
   min-height: 100vh;
   background: var(--void);
@@ -47,10 +48,10 @@ body {
 
 .input {
   width: 100%;
-  padding: 14px 16px;
+  padding: 18px 20px;
   border-radius: 0;
   border: 1px solid rgba(201,168,76,0.2);
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-family: 'DM Sans', sans-serif;
   font-weight: 300;
   outline: none;
@@ -63,13 +64,13 @@ body {
 
 .btn-gold {
   width: 100%;
-  padding: 14px;
+  padding: 18px 24px;
   border: 1px solid var(--gold);
   background: transparent;
   color: var(--gold);
-  font-size: 0.82rem;
+  font-size: 0.95rem;
   font-family: 'Space Mono', monospace;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   cursor: pointer;
   transition: all 0.3s;
@@ -91,11 +92,11 @@ body {
 
 .section-label {
   font-family: 'Space Mono', monospace;
-  font-size: 9px;
-  letter-spacing: 0.25em;
+  font-size: 11px;
+  letter-spacing: 0.28em;
   color: var(--gold-dim);
   text-transform: uppercase;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .gold-rule {

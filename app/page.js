@@ -648,6 +648,9 @@ export default function BurnoutDemo() {
   // Constellation completion, keyed by problemId. Each entry is a Set of
   // node ids. Persists across realm switches.
   const [completedLearning, setCompletedLearning] = useState({});
+  // After domain pick: 'specific' (skip scenarios, direct problem pick) or
+  // 'discover' (existing 5-question scenario flow).
+  const [pathChoice, setPathChoice] = useState(null);
   // Activities use problemId-keyed completion (analog of completedByRealm).
   const [completedByProblem, setCompletedByProblem] = useState({});
 
@@ -885,7 +888,35 @@ export default function BurnoutDemo() {
     setSelectedDomain(domainId);
     setScenarioIdx(0);
     setScenarioAnswers([]);
-    setScreen("scenario");
+    setPathChoice(null);
+    setScreen("domain-path-choice");
+  };
+
+  const handleChoosePath = (choice) => {
+    if (audio) audio.unlock();
+    setPathChoice(choice);
+    if (choice === "discover") {
+      setScenarioIdx(0);
+      setScenarioAnswers([]);
+      setScreen("scenario");
+    } else {
+      setScreen("problem-pick");
+    }
+  };
+
+  // Direct problem pick — bypasses scenario diagnosis. Synthesises a
+  // minimal `diagnosis` object so the rest of the flow keeps working.
+  const handlePickProblem = (problemId) => {
+    if (audio) audio.unlock();
+    setDiagnosis({
+      problemId,
+      score: null,
+      runnerUpId: null,
+      runnerUpScore: 0,
+      tally: {},
+    });
+    setActiveProblemId(problemId);
+    setScreen("problem-reveal");
   };
 
   const handleScenarioAnswer = (optionId) => {
@@ -1192,38 +1223,185 @@ export default function BurnoutDemo() {
   if (screen === "domain-pick") {
     const domains = getDomainList();
     return (
-      <div className="shell" style={{ padding: "2.5rem 1.5rem" }}>
+      <div className="shell" style={{ padding: "2.75rem 2rem" }}>
         <div className="section-label">FIRST QUESTION</div>
-        <h2 className="serif" style={{ fontSize: "1.5rem", color: "var(--cream)", marginBottom: 8 }}>
+        <h2 className="serif" style={{ fontSize: "1.95rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.25 }}>
           {userName}, where do you want help?
         </h2>
-        <p style={{ fontSize: "0.85rem", color: "var(--silver)", marginBottom: 22, lineHeight: 1.5 }}>
+        <p style={{ fontSize: "1.05rem", color: "var(--silver)", marginBottom: 28, lineHeight: 1.6 }}>
           Pick the area that's heaviest. We'll narrow from there.
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {domains.map(d => (
             <button
               key={d.id}
               onClick={() => handleDomainPick(d.id)}
               style={{
-                padding: "1.1rem 1rem",
+                padding: "1.4rem 1.4rem",
                 background: "var(--deep)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.08)",
                 textAlign: "left",
                 cursor: "pointer",
                 fontFamily: "inherit",
                 color: "inherit",
               }}
             >
-              <div className="serif" style={{ fontSize: "1.05rem", color: "var(--cream)", marginBottom: 4 }}>
+              <div className="serif" style={{ fontSize: "1.25rem", color: "var(--cream)", marginBottom: 6 }}>
                 {d.name}
               </div>
-              <div style={{ fontSize: "0.72rem", color: "var(--silver)", lineHeight: 1.45 }}>
+              <div style={{ fontSize: "0.88rem", color: "var(--silver)", lineHeight: 1.5 }}>
                 {d.blurb}
               </div>
             </button>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // ─── DOMAIN PATH CHOICE (specific vs discovery) ────────────────────
+  if (screen === "domain-path-choice") {
+    const domain = getDomain(selectedDomain);
+    if (!domain) return null;
+    return (
+      <div className="shell" style={{ padding: "2.75rem 2rem" }}>
+        <div className="section-label">{domain.name.toUpperCase()}</div>
+        <h2 className="serif" style={{ fontSize: "1.95rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.25 }}>
+          Do you know what you want to work on?
+        </h2>
+        <p style={{ fontSize: "1.05rem", color: "var(--silver)", lineHeight: 1.6, marginBottom: 28 }}>
+          Some people arrive with a clear ache. Others want help finding it. Both are fine — pick the door that fits.
+        </p>
+
+        <button
+          onClick={() => handleChoosePath("specific")}
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "left",
+            padding: "1.5rem 1.6rem",
+            marginBottom: 14,
+            background: "var(--deep)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            color: "inherit",
+          }}
+        >
+          <div className="mono" style={{ fontSize: "10px", letterSpacing: "0.22em", color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>
+            I KNOW
+          </div>
+          <div className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)", marginBottom: 6, lineHeight: 1.3 }}>
+            Show me the specific areas
+          </div>
+          <div style={{ fontSize: "0.95rem", color: "var(--silver)", lineHeight: 1.55 }}>
+            I'll pick from a short list of {domain.name.toLowerCase()} areas.
+          </div>
+        </button>
+
+        <button
+          onClick={() => handleChoosePath("discover")}
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "left",
+            padding: "1.5rem 1.6rem",
+            marginBottom: 14,
+            background: "var(--deep)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            color: "inherit",
+          }}
+        >
+          <div className="mono" style={{ fontSize: "10px", letterSpacing: "0.22em", color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>
+            HELP ME FIND IT
+          </div>
+          <div className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)", marginBottom: 6, lineHeight: 1.3 }}>
+            Walk me through five questions
+          </div>
+          <div style={{ fontSize: "0.95rem", color: "var(--silver)", lineHeight: 1.55 }}>
+            Short scenarios surface where the weight really is.
+          </div>
+        </button>
+
+        <button
+          onClick={() => setScreen("domain-pick")}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "var(--silver)",
+            fontSize: "0.85rem",
+            textDecoration: "underline",
+            marginTop: 18,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            padding: 0,
+          }}
+        >
+          ← Pick a different area
+        </button>
+      </div>
+    );
+  }
+
+  // ─── PROBLEM PICK (direct, for users who already know) ─────────────
+  if (screen === "problem-pick") {
+    const domain = getDomain(selectedDomain);
+    const problems = selectedDomain ? getAllProblems(selectedDomain) : [];
+    if (!domain) return null;
+    return (
+      <div className="shell" style={{ padding: "2.75rem 2rem" }}>
+        <div className="section-label">{domain.name.toUpperCase()}</div>
+        <h2 className="serif" style={{ fontSize: "1.95rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.25 }}>
+          Which one is heaviest right now?
+        </h2>
+        <p style={{ fontSize: "1.05rem", color: "var(--silver)", lineHeight: 1.6, marginBottom: 26 }}>
+          Pick the one that fits. If none does, the discovery path can surface something more specific.
+        </p>
+
+        {problems.map(p => (
+          <button
+            key={p.id}
+            onClick={() => handlePickProblem(p.id)}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              padding: "1.4rem 1.6rem",
+              marginBottom: 12,
+              background: "var(--deep)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              color: "inherit",
+            }}
+          >
+            <div className="serif" style={{ fontSize: "1.25rem", color: "var(--cream)", marginBottom: 6, lineHeight: 1.3 }}>
+              {p.journey?.title || p.name}
+            </div>
+            <div style={{ fontSize: "0.95rem", color: "var(--silver)", lineHeight: 1.55 }}>
+              {p.journey?.opening || p.shortDescription}
+            </div>
+          </button>
+        ))}
+
+        <button
+          onClick={() => setScreen("domain-path-choice")}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "var(--silver)",
+            fontSize: "0.85rem",
+            textDecoration: "underline",
+            marginTop: 14,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            padding: 0,
+          }}
+        >
+          ← Help me discover instead
+        </button>
       </div>
     );
   }
@@ -1236,11 +1414,11 @@ export default function BurnoutDemo() {
     const total = questions.length;
     if (!q || !domain) return null;
     return (
-      <div className="shell" style={{ padding: "2.5rem 1.5rem" }}>
+      <div className="shell" style={{ padding: "2.75rem 2rem" }}>
         <div className="section-label">
           {domain.name.toUpperCase()} · {scenarioIdx + 1} OF {total}
         </div>
-        <div style={{ height: 2, background: "rgba(255,255,255,0.06)", marginBottom: 22 }}>
+        <div style={{ height: 2, background: "rgba(255,255,255,0.06)", marginBottom: 28 }}>
           <div style={{
             width: `${(scenarioIdx / total) * 100}%`,
             height: "100%",
@@ -1248,24 +1426,24 @@ export default function BurnoutDemo() {
             transition: "width 0.4s",
           }} />
         </div>
-        <h2 className="serif" style={{ fontSize: "1.2rem", color: "var(--cream)", marginBottom: 20, lineHeight: 1.45 }}>
+        <h2 className="serif" style={{ fontSize: "1.55rem", color: "var(--cream)", marginBottom: 26, lineHeight: 1.4 }}>
           {q.prompt}
         </h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {q.options.map(opt => (
             <button
               key={opt.id}
               onClick={() => handleScenarioAnswer(opt.id)}
               style={{
-                padding: "1rem 1.1rem",
+                padding: "1.2rem 1.4rem",
                 background: "var(--deep)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.08)",
                 color: "var(--cream)",
-                fontSize: "0.9rem",
+                fontSize: "1rem",
                 textAlign: "left",
                 cursor: "pointer",
                 fontFamily: "inherit",
-                lineHeight: 1.4,
+                lineHeight: 1.45,
               }}
             >
               {opt.text}
@@ -1292,33 +1470,33 @@ export default function BurnoutDemo() {
       `reveal-${selectedDomain}-${diagnosis.problemId}`
     );
     return (
-      <div className="shell" style={{ padding: "2rem 1.5rem" }}>
+      <div className="shell" style={{ padding: "2.5rem 2rem" }}>
         <div className="section-label">THE RIDE AHEAD</div>
 
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
-          <SignatureScene sceneId="who-stays" size={300} />
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
+          <SignatureScene sceneId="who-stays" size={460} />
         </div>
 
-        <h2 className="serif" style={{ fontSize: "1.5rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.3 }}>
+        <h2 className="serif" style={{ fontSize: "1.9rem", color: "var(--cream)", marginBottom: 16, lineHeight: 1.25 }}>
           {journey.title}
         </h2>
-        <p style={{ fontSize: "0.95rem", color: "var(--silver)", marginBottom: 22, lineHeight: 1.55 }}>
+        <p style={{ fontSize: "1.08rem", color: "var(--silver)", marginBottom: 26, lineHeight: 1.65 }}>
           {journey.opening}
         </p>
 
         {openingQuote && (
-          <div style={{ borderLeft: "2px solid var(--gold)", paddingLeft: 14, marginBottom: 22 }}>
-            <p className="serif" style={{ fontSize: "0.95rem", color: "var(--cream)", fontStyle: "italic", lineHeight: 1.55, marginBottom: 6 }}>
+          <div style={{ borderLeft: "2px solid var(--gold)", paddingLeft: 18, marginBottom: 26 }}>
+            <p className="serif" style={{ fontSize: "1.1rem", color: "var(--cream)", fontStyle: "italic", lineHeight: 1.55, marginBottom: 8 }}>
               "{openingQuote.text}"
             </p>
-            <p className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)", letterSpacing: "0.2em", textTransform: "uppercase" }}>
+            <p className="mono" style={{ fontSize: "10px", color: "var(--gold-dim)", letterSpacing: "0.22em", textTransform: "uppercase" }}>
               — {openingQuote.author}
             </p>
           </div>
         )}
 
         {runnerUp && (
-          <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.4)", marginBottom: 22, fontStyle: "italic", lineHeight: 1.5 }}>
+          <p style={{ fontSize: "0.88rem", color: "rgba(255,255,255,0.4)", marginBottom: 24, fontStyle: "italic", lineHeight: 1.55 }}>
             You may also be carrying — {(runnerJourney?.title || runnerUp.name).toLowerCase().replace(/^from\s+/, "")}.
           </p>
         )}
@@ -1774,7 +1952,7 @@ export default function BurnoutDemo() {
         </h2>
 
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
-          <Mandala archetypeId={archetype.id} color={archetype.color} concept="opening" size={220} />
+          <Mandala archetypeId={archetype.id} color={archetype.color} concept="opening" size={300} />
         </div>
 
         {/* First message */}
@@ -1888,7 +2066,7 @@ export default function BurnoutDemo() {
         {/* THE ONE HERO ANIMATION — signature scene for the active problem */}
         {heroSceneId && (
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
-            <SignatureScene sceneId={heroSceneId} size={360} />
+            <SignatureScene sceneId={heroSceneId} size={480} />
           </div>
         )}
 
@@ -1945,7 +2123,7 @@ export default function BurnoutDemo() {
         {/* Mentor message — bridge text + quote — with the archetype mandala beside it */}
         <div style={{ padding: "0.9rem 1rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, marginBottom: 14, minHeight: 80, display: "flex", gap: 12, alignItems: "flex-start" }}>
           <div style={{ flexShrink: 0, paddingTop: 2 }}>
-            <Mandala archetypeId={archetype.id} color={archetype.color} concept={mentorParsed.concept} size={88} />
+            <Mandala archetypeId={archetype.id} color={archetype.color} concept={mentorParsed.concept} size={112} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>
@@ -2144,7 +2322,7 @@ export default function BurnoutDemo() {
 
         {/* Shadow integration — signature scene */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-          <SignatureScene id="shadow" size={360} />
+          <SignatureScene id="shadow" size={460} />
         </div>
 
         <div className="mono" style={{ fontSize: "9px", letterSpacing: "0.2em", color: "var(--gold-dim)", textTransform: "uppercase", marginBottom: 8 }}>

@@ -373,6 +373,148 @@ function VoiceCard({ voice, recommended, selected, onPick, onPlay, compact }) {
   );
 }
 
+// Constellation section — wraps the SVG with a header, intro paragraph,
+// legend, lit counter, and a collapsible list of the 8 underlying resources.
+// Clicking a resource row toggles the same state as clicking its star.
+function ConstellationSection({ learning, completed, onToggle, archetype, problemName }) {
+  const [showResources, setShowResources] = useState(false);
+  const total =
+    (learning?.foundation?.length || 0) +
+    (learning?.depth?.length || 0) +
+    (learning?.integration?.length || 0);
+
+  return (
+    <div>
+      <div className="section-label">THE CONSTELLATION</div>
+      <h3 className="serif" style={{ fontSize: "1.1rem", color: "var(--cream)", marginTop: 4, marginBottom: 8 }}>
+        What you carry into this realm.
+      </h3>
+      <p style={{ fontSize: "0.85rem", color: "var(--silver)", lineHeight: 1.55, marginBottom: 18 }}>
+        The Path is what you <em>do</em>. The Constellation is what you <em>know</em>. Each star is a course, a book, or an insight curated for{" "}
+        <span style={{ color: "var(--cream)" }}>{problemName?.toLowerCase()}</span>. Light them by completing the resource — they don't go out.
+      </p>
+
+      <div style={{ maxWidth: 460, margin: "0 auto" }}>
+        <Constellation
+          learning={learning}
+          completed={completed}
+          onToggle={onToggle}
+          color={archetype.color}
+        />
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "center", gap: 18, marginTop: 14, marginBottom: 18 }}>
+        <LegendDot color={archetype.color} size={9} label="Foundation" />
+        <LegendDot color={archetype.color} size={7} label="Depth" />
+        <LegendDot color={archetype.color} size={6} label="Integration" />
+      </div>
+
+      <div className="mono" style={{ textAlign: "center", color: "var(--silver)", fontSize: "0.7rem", letterSpacing: "0.2em" }}>
+        {completed.size} OF {total} LIT
+      </div>
+
+      <button
+        onClick={() => setShowResources(s => !s)}
+        style={{
+          background: "transparent",
+          border: "none",
+          color: "var(--silver)",
+          fontSize: "0.85rem",
+          textDecoration: "underline",
+          marginTop: 18,
+          cursor: "pointer",
+          display: "block",
+          fontFamily: "inherit",
+          padding: 0,
+        }}
+      >
+        {showResources ? "▲ Hide resources" : "▼ See the 8 resources"}
+      </button>
+
+      {showResources && (
+        <div style={{ marginTop: 14 }}>
+          {[
+            { tier: "Foundation",  items: learning?.foundation  || [] },
+            { tier: "Depth",       items: learning?.depth       || [] },
+            { tier: "Integration", items: learning?.integration || [] },
+          ].map(group => (
+            <div key={group.tier} style={{ marginBottom: 12 }}>
+              <div className="mono" style={{ fontSize: "8px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.2em", marginBottom: 6, textTransform: "uppercase" }}>
+                {group.tier}
+              </div>
+              {group.items.map(item => (
+                <ResourceRow
+                  key={item.id}
+                  item={item}
+                  completed={completed.has(item.id)}
+                  onToggle={() => onToggle(item.id)}
+                  archetypeColor={archetype.color}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LegendDot({ color, size, label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div
+        style={{
+          width: size * 2,
+          height: size * 2,
+          borderRadius: "50%",
+          border: `1.5px solid ${color}`,
+        }}
+      />
+      <span className="mono" style={{ fontSize: "9px", color: "var(--silver)", letterSpacing: "0.15em" }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function ResourceRow({ item, completed, onToggle, archetypeColor }) {
+  return (
+    <div
+      onClick={onToggle}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "0.65rem 0.85rem",
+        marginBottom: 4,
+        background: "var(--deep)",
+        border: `1px solid ${completed ? archetypeColor : "rgba(255,255,255,0.08)"}`,
+        cursor: "pointer",
+      }}
+    >
+      <div
+        style={{
+          width: 14,
+          height: 14,
+          borderRadius: "50%",
+          background: completed ? archetypeColor : "transparent",
+          border: `1.5px solid ${archetypeColor}`,
+          flexShrink: 0,
+          transition: "background 400ms cubic-bezier(0.22,1,0.36,1)",
+        }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="serif" style={{ fontSize: "0.9rem", color: "var(--cream)", marginBottom: 2, lineHeight: 1.3 }}>
+          {item.title}
+        </div>
+        <div className="mono" style={{ fontSize: "8px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.18em", textTransform: "uppercase" }}>
+          {item.type} · {item.provider} · {item.durationMin} min
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Dashboard realm card. The active realm is shown prominently; the rest
 // surface behind a disclosure with a "Switch to this realm →" action.
 function RealmCard({ problem, archetypeColor, active, recommended, onSwitch, compact }) {
@@ -1822,57 +1964,77 @@ export default function BurnoutDemo() {
           </div>
         </div>
 
-        {/* Two-track view — practice on the left, knowledge on the right.
-            Stacks vertically below 640px viewports. */}
-        {(activities.length > 0 || learning) && (
-          <div className="two-track" style={{ marginBottom: 12 }}>
-            {activities.length > 0 && (
-              <div>
-                <div className="section-label">THE PATH</div>
-                {activities.map((a, i) => {
-                  const done = problemDoneIdx.includes(`${i}`);
-                  return (
-                    <div key={a.id} style={{
-                      padding: "0.85rem 1rem",
-                      background: done ? "rgba(201,168,76,0.05)" : "var(--slate)",
-                      border: `1px solid ${done ? "var(--gold-dim)" : "rgba(255,255,255,0.04)"}`,
-                      marginBottom: 4, opacity: done ? 0.65 : 1,
-                    }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                        <div className="serif" style={{ color: "var(--cream)", fontSize: "0.95rem", lineHeight: 1.3 }}>
-                          {done ? "✓ " : ""}{a.name}
-                        </div>
-                        <div className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                          {a.cadence}
-                        </div>
-                      </div>
-                      <div style={{ fontSize: "0.76rem", color: "var(--silver)", marginBottom: 8, lineHeight: 1.5, fontStyle: "italic" }}>{a.description}</div>
-                      {!done && (
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-                          <button onClick={() => completeActivity(a, i)}
-                            style={{ padding: "5px 12px", border: `1px solid ${archetype.color}`, background: "transparent", color: archetype.color, fontSize: "0.7rem", fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>DONE</button>
-                        </div>
-                      )}
+        {/* THE PATH — full-width activity cards. Practice dimension. */}
+        {activities.length > 0 && (
+          <div style={{ marginTop: 6, marginBottom: 10 }}>
+            <div className="section-label">THE PATH</div>
+            {activities.map((a, i) => {
+              const done = problemDoneIdx.includes(`${i}`);
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => !done && completeActivity(a, i)}
+                  disabled={done}
+                  style={{
+                    width: "100%",
+                    padding: "1.1rem 1.3rem",
+                    marginBottom: 10,
+                    background: done ? "rgba(201,168,76,0.05)" : "var(--deep)",
+                    border: `1px solid ${done ? archetype.color : "rgba(255,255,255,0.06)"}`,
+                    textAlign: "left",
+                    cursor: done ? "default" : "pointer",
+                    opacity: done ? 0.6 : 1,
+                    fontFamily: "inherit",
+                    color: "inherit",
+                    display: "block",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                    <div className="serif" style={{ color: "var(--cream)", fontSize: "1.05rem", lineHeight: 1.3 }}>
+                      {done ? "✓ " : ""}{a.name}
                     </div>
-                  );
-                })}
-                <div className="mono" style={{ marginTop: 6, fontSize: "9px", color: "var(--silver)", letterSpacing: "0.2em" }}>
-                  {problemDoneIdx.length} OF {activities.length} DONE
-                </div>
-              </div>
-            )}
+                    <div className="mono" style={{ fontSize: "8px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.2em", textTransform: "uppercase", whiteSpace: "nowrap", marginLeft: 12 }}>
+                      {a.cadence}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--silver)", lineHeight: 1.5, marginBottom: done ? 0 : 10 }}>
+                    {a.description}
+                  </div>
+                  {!done && (
+                    <div
+                      className="mono"
+                      style={{
+                        display: "inline-block",
+                        padding: "6px 14px",
+                        border: `1px solid ${archetype.color}`,
+                        color: archetype.color,
+                        fontSize: "0.72rem",
+                        letterSpacing: "0.18em",
+                        marginTop: 4,
+                      }}
+                    >
+                      DONE
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+            <div className="mono" style={{ marginTop: 4, fontSize: "9px", color: "var(--silver)", letterSpacing: "0.2em" }}>
+              {problemDoneIdx.length} OF {activities.length} DONE
+            </div>
+          </div>
+        )}
 
-            {learning && (
-              <div>
-                <div className="section-label">THE CONSTELLATION</div>
-                <Constellation
-                  learning={learning}
-                  completed={learningCompleted}
-                  onToggle={toggleLearningNode}
-                  color={archetype.color}
-                />
-              </div>
-            )}
+        {/* THE CONSTELLATION — full-width, beneath the path. Knowledge dimension. */}
+        {learning && (
+          <div style={{ marginTop: 28, marginBottom: 14 }}>
+            <ConstellationSection
+              learning={learning}
+              completed={learningCompleted}
+              onToggle={toggleLearningNode}
+              archetype={archetype}
+              problemName={problem?.journey?.title || problem?.name || ""}
+            />
           </div>
         )}
 

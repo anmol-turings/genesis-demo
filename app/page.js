@@ -20,6 +20,7 @@ import {
   getQuestions,
   diagnoseProblem,
   getProblem,
+  getAllProblems,
   getFirstMessage,
   getActivities,
   getHeroScene,
@@ -370,6 +371,74 @@ function VoiceCard({ voice, recommended, selected, onPick, onPlay, compact }) {
   );
 }
 
+// Dashboard realm card. The active realm is shown prominently; the rest
+// surface behind a disclosure with a "Switch to this realm →" action.
+function RealmCard({ problem, archetypeColor, active, recommended, onSwitch, compact }) {
+  return (
+    <div
+      onClick={onSwitch ? onSwitch : undefined}
+      style={{
+        padding: compact ? "0.9rem 1rem" : "1rem 1.1rem",
+        background: active ? `${archetypeColor}10` : "var(--deep)",
+        border: `1px solid ${active ? archetypeColor : "rgba(255,255,255,0.06)"}`,
+        cursor: onSwitch ? "pointer" : "default",
+        marginBottom: 0,
+      }}
+    >
+      {(recommended || active) && (
+        <div
+          className="mono"
+          style={{
+            fontSize: "8px",
+            letterSpacing: "0.2em",
+            color: archetypeColor,
+            textTransform: "uppercase",
+            marginBottom: 4,
+          }}
+        >
+          {recommended && <span style={{ marginRight: 8, color: "var(--gold)" }}>★ RECOMMENDED</span>}
+          {active && !recommended && <span>ACTIVE</span>}
+        </div>
+      )}
+      <div
+        className="serif"
+        style={{
+          fontSize: compact ? "0.95rem" : "1.1rem",
+          color: "var(--cream)",
+          marginBottom: 4,
+          lineHeight: 1.3,
+        }}
+      >
+        {problem.journey?.title || problem.name}
+      </div>
+      {!compact && (
+        <div style={{ fontSize: "0.78rem", color: "var(--silver)", lineHeight: 1.45 }}>
+          {problem.journey?.opening || problem.shortDescription}
+        </div>
+      )}
+      {compact && onSwitch && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onSwitch(); }}
+          style={{
+            background: "transparent",
+            border: `1px solid ${archetypeColor}55`,
+            color: archetypeColor,
+            padding: "5px 10px",
+            marginTop: 8,
+            fontSize: "0.7rem",
+            cursor: "pointer",
+            fontFamily: "'Space Mono', monospace",
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+          }}
+        >
+          Switch to this realm →
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function BurnoutDemo() {
   const [screen, setScreen] = useState("hero");
 
@@ -425,6 +494,13 @@ export default function BurnoutDemo() {
   // three blocks; the same three are voiced as one continuous TTS read.
   const [aspirationalPromise, setAspirationalPromise] = useState("");
   const [aspirationalQuote, setAspirationalQuote] = useState(null);
+  // Dashboard: which problem is currently displayed. Defaults to diagnosed,
+  // user can switch via the "Explore other realms" disclosure.
+  const [activeProblemId, setActiveProblemId] = useState(null);
+  const [showOtherRealms, setShowOtherRealms] = useState(false);
+  // Shadow screen has its own mentor reply state so it doesn't clobber the
+  // dashboard's mentorRaw when the user returns.
+  const [shadowReplyRaw, setShadowReplyRaw] = useState("");
   // Activities use problemId-keyed completion (analog of completedByRealm).
   const [completedByProblem, setCompletedByProblem] = useState({});
 
@@ -519,10 +595,15 @@ export default function BurnoutDemo() {
       setQuoteHistory(h => ({ ...h, [authorSlug]: (h[authorSlug] || 0) + 1 }));
     }
 
+    // Shadow_encounter writes to its own state so the dashboard's mentorRaw
+    // isn't clobbered when the user returns from the shadow trip.
+    const isShadow = kind === "shadow_encounter";
+    const writeRaw = (v) => (isShadow ? setShadowReplyRaw(v) : setMentorRaw(v));
+
     if (audio && audio.hasCached(key)) {
       if (prewarm) return;
       const cached = audio.getCached(key);
-      setMentorRaw(cached.mentorRaw || "");
+      writeRaw(cached.mentorRaw || "");
       setMentorLoading(false);
       if (cached.audioUrl && !muted) {
         await audio.play(cached.audioUrl);
@@ -533,7 +614,7 @@ export default function BurnoutDemo() {
 
     if (!prewarm) {
       setMentorLoading(true);
-      setMentorRaw("");
+      writeRaw("");
     }
 
     const ackPrefix = (authorSlug && priorCount === 2 && archetype?.returningQuoteAck)
@@ -575,7 +656,7 @@ export default function BurnoutDemo() {
       : `${bridgeWithAck} ${concept}`;
 
     if (!prewarm) {
-      setMentorRaw(finalRaw);
+      writeRaw(finalRaw);
       setMentorLoading(false);
     }
 
@@ -688,6 +769,10 @@ export default function BurnoutDemo() {
     setArchetype(rec.archetype);
     setArchetypeReasons(rec.reasons);
     setShowOtherMentors(false);
+    // Seed the dashboard's active realm with the diagnosed problem; the user
+    // can switch via the "Explore other realms" disclosure later.
+    if (diagnosis?.problemId) setActiveProblemId(diagnosis.problemId);
+    setShowOtherRealms(false);
     setScreen("archetype");
   };
 
@@ -794,14 +879,35 @@ export default function BurnoutDemo() {
     if (audio) { audio.unlock(); audio.stop(); }
     setIsPlaying(false);
     setMentorRaw("");
+    // Fallback init for activeProblemId in case it wasn't seeded earlier.
+    if (!activeProblemId && diagnosis?.problemId) {
+      setActiveProblemId(diagnosis.problemId);
+    }
     setScreen("dashboard");
     setTimeout(() => generateMentor("realm_briefing"), 400);
   };
 
-  // Activity completion (lookup-table driven, keyed off problemId).
+  // Switch the dashboard's active realm to a different problem in the
+  // same domain. Triggers a fresh mentor briefing.
+  const switchActiveProblem = async (problemId) => {
+    if (!problemId || problemId === activeProblemId) {
+      setShowOtherRealms(false);
+      return;
+    }
+    if (audio) { audio.unlock(); audio.stop(); }
+    setIsPlaying(false);
+    setActiveProblemId(problemId);
+    setShowOtherRealms(false);
+    setMentorRaw("");
+    setTimeout(() => generateMentor("realm_briefing"), 200);
+  };
+
+  // Activity completion (lookup-table driven, keyed off the currently
+  // active realm — which defaults to the diagnosed problem but can be
+  // switched via the dashboard's realms disclosure).
   const completeActivity = (activity, idx) => {
-    if (!diagnosis) return;
-    const pid = diagnosis.problemId;
+    const pid = activeProblemId || diagnosis?.problemId;
+    if (!pid) return;
     const pts = 10;
     setRecoveryScore(s => Math.min(100, s + 3));
     setTotalPoints(t => t + pts);
@@ -855,15 +961,17 @@ export default function BurnoutDemo() {
     setIsPlaying(false);
     const naming = generateShadowNaming(persona, profile);
     setShadowEncounterText(naming);
-    setMentorRaw("");
+    // Reset only the shadow's own reply state — leave dashboard mentorRaw intact.
+    setShadowReplyRaw("");
     setScreen("shadow_encounter");
   };
 
   // Always-available back-to-dashboard for the shadow page (Bug #6).
+  // Does NOT clear mentorRaw or activeProblemId — those belong to the dashboard.
   const exitShadowEncounter = () => {
     if (audio) audio.stop();
     setIsPlaying(false);
-    setMentorRaw("");
+    setShadowReplyRaw("");
     setShadowEncounterText("");
     setScreen("dashboard");
   };
@@ -1552,21 +1660,27 @@ export default function BurnoutDemo() {
 
   // ─── DASHBOARD — ONE hero animation per page ──────────────────────
   if (screen === "dashboard") {
-    // Onboarding-v2 dashboard is driven by the diagnosed problem, not the
-    // realm cycle. We still resolve `realm` so the existing mentor-briefing
-    // pipeline keeps working (it builds prompts from realm metadata).
+    // Onboarding-v2 dashboard is driven by the active problem (defaults to
+    // diagnosed, user can switch via the realms disclosure). The legacy
+    // `realm` is still resolved so the existing mentor-briefing pipeline
+    // keeps building prompts.
     const realm = orderedRealms[activeRealmIdx] || REALMS[0];
     const isTopPriority = activeRealmIdx === 0;
-    const heroSceneId = (selectedDomain && diagnosis)
-      ? getHeroScene(selectedDomain, diagnosis.problemId)
+    const dashProblemId = activeProblemId || diagnosis?.problemId || null;
+    const heroSceneId = (selectedDomain && dashProblemId)
+      ? getHeroScene(selectedDomain, dashProblemId)
       : null;
-    const activities = (selectedDomain && diagnosis)
-      ? getActivities(selectedDomain, diagnosis.problemId)
+    const activities = (selectedDomain && dashProblemId)
+      ? getActivities(selectedDomain, dashProblemId)
       : [];
-    const problem = (selectedDomain && diagnosis)
-      ? getProblem(selectedDomain, diagnosis.problemId)
+    const problem = (selectedDomain && dashProblemId)
+      ? getProblem(selectedDomain, dashProblemId)
       : null;
     const problemDoneIdx = problem ? (completedByProblem[problem.id] || []) : [];
+    // Realms disclosure: every problem in the chosen domain
+    const allDomainProblems = selectedDomain ? getAllProblems(selectedDomain) : [];
+    const otherProblems = allDomainProblems.filter(p => p.id !== dashProblemId);
+    const isDiagnosedActive = diagnosis && dashProblemId === diagnosis.problemId;
 
     return (
       <div className="shell" style={{ padding: "1.2rem 1.4rem 2rem" }}>
@@ -1605,24 +1719,60 @@ export default function BurnoutDemo() {
           </span>
         </div>
 
-        {/* Problem banner — driven by diagnosis, not realm cycle */}
-        {problem && (
-          <div style={{ marginBottom: 10, padding: "0.8rem 1rem", background: archetype.color + "10", border: `1px solid ${archetype.color}40` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="mono" style={{ fontSize: "8px", letterSpacing: "0.2em", color: archetype.color, textTransform: "uppercase" }}>YOUR PRACTICE</div>
-                <div className="serif" style={{ fontSize: "1.2rem", color: "var(--cream)" }}>{problem.name}</div>
-                <div style={{ fontSize: "0.72rem", color: "var(--silver)", marginTop: 2, lineHeight: 1.45 }}>{problem.shortDescription}</div>
-              </div>
-              {isTopPriority && <div className="mono" style={{ fontSize: "7px", padding: "2px 8px", background: "var(--gold)", color: "var(--void)", letterSpacing: "0.15em", fontWeight: 700, whiteSpace: "nowrap" }}>BEGIN HERE</div>}
-            </div>
-          </div>
-        )}
-
-        {/* THE ONE HERO ANIMATION — signature scene for the diagnosed problem */}
+        {/* THE ONE HERO ANIMATION — signature scene for the active problem */}
         {heroSceneId && (
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
             <SignatureScene sceneId={heroSceneId} size={360} />
+          </div>
+        )}
+
+        {/* Realm — active card + disclosure for the other realms in this domain */}
+        {problem && (
+          <div style={{ marginTop: 4, marginBottom: 14 }}>
+            <div className="section-label">YOUR REALM</div>
+            <RealmCard
+              problem={problem}
+              archetypeColor={archetype.color}
+              active
+              recommended={isDiagnosedActive}
+            />
+
+            {!showOtherRealms && otherProblems.length > 0 && (
+              <button
+                onClick={() => setShowOtherRealms(true)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--silver)",
+                  fontSize: "0.82rem",
+                  textDecoration: "underline",
+                  marginTop: 10,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  padding: 0,
+                }}
+              >
+                ▼  Explore other realms in {getDomain(selectedDomain)?.name || ""}
+              </button>
+            )}
+
+            {showOtherRealms && otherProblems.length > 0 && (
+              <>
+                <div className="section-label" style={{ marginTop: 18 }}>OTHER REALMS</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {otherProblems.map(p => (
+                    <RealmCard
+                      key={p.id}
+                      problem={p}
+                      archetypeColor={archetype.color}
+                      recommended={diagnosis && p.id === diagnosis.problemId}
+                      onSwitch={() => switchActiveProblem(p.id)}
+                      compact
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1768,6 +1918,8 @@ export default function BurnoutDemo() {
 
   // ─── SHADOW ENCOUNTER ──────────────────────────────────────────────
   if (screen === "shadow_encounter") {
+    // Shadow reads from its own state so the dashboard's mentorRaw stays put.
+    const shadowParsed = parseMentorMessage(shadowReplyRaw);
     return (
       <div className="shell" style={{ padding: "2rem 1.5rem" }}>
         {/* Always-available exit — does NOT require offering to leave (Bug #6) */}
@@ -1814,15 +1966,15 @@ export default function BurnoutDemo() {
         <button
           className="btn-gold"
           onClick={submitShadowEncounter}
-          disabled={mentorLoading || mentorRaw}
+          disabled={mentorLoading || shadowReplyRaw}
         >
-          {mentorRaw ? "RECEIVED" : mentorLoading ? `${archetype.name} listens...` : `BRING IT TO ${archetype.name.toUpperCase()} →`}
+          {shadowReplyRaw ? "RECEIVED" : mentorLoading ? `${archetype.name} listens...` : `BRING IT TO ${archetype.name.toUpperCase()} →`}
         </button>
 
-        {(mentorLoading || mentorRaw) && (
+        {(mentorLoading || shadowReplyRaw) && (
           <div className="animate-fadeUp" style={{ marginTop: 18, padding: "1rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, display: "flex", gap: 12, alignItems: "flex-start" }}>
             <div style={{ flexShrink: 0, paddingTop: 2 }}>
-              <Mandala archetypeId={archetype.id} color={archetype.color} concept={mentorParsed.concept || "integration"} size={88} />
+              <Mandala archetypeId={archetype.id} color={archetype.color} concept={shadowParsed.concept || "integration"} size={88} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>
@@ -1834,15 +1986,15 @@ export default function BurnoutDemo() {
                 </div>
               ) : (
                 <>
-                  <AnimatedText text={mentorParsed.text} color={archetype.color} />
-                  <QuoteBlock quote={mentorParsed.quote} author={mentorParsed.author} color={archetype.color} />
+                  <AnimatedText text={shadowParsed.text} color={archetype.color} />
+                  <QuoteBlock quote={shadowParsed.quote} author={shadowParsed.author} color={archetype.color} />
                 </>
               )}
             </div>
           </div>
         )}
 
-        {mentorRaw && (
+        {shadowReplyRaw && (
           <button className="btn-ghost" style={{ marginTop: 12, width: "100%" }} onClick={exitShadowEncounter}>
             BACK TO THE TRAIL
           </button>

@@ -648,6 +648,9 @@ export default function BurnoutDemo() {
   // Constellation completion, keyed by problemId. Each entry is a Set of
   // node ids. Persists across realm switches.
   const [completedLearning, setCompletedLearning] = useState({});
+  // Quote shown beneath the dashboard mentor message. Re-picked on realm
+  // switch; stable across re-renders for the same realm-on-same-day.
+  const [dashboardQuote, setDashboardQuote] = useState(null);
   // After domain pick: 'specific' (skip scenarios, direct problem pick) or
   // 'discover' (existing 5-question scenario flow).
   const [pathChoice, setPathChoice] = useState(null);
@@ -1060,21 +1063,37 @@ export default function BurnoutDemo() {
     // hasn't been set yet.
     const pid = activeProblemId || diagnosis?.problemId || null;
     if (pid && !activeProblemId) setActiveProblemId(pid);
-    // Mentor message comes from the lookup table, not the legacy
-    // realm_briefing pipeline, so first-entry stays consistent with
-    // what subsequent realm-switches show.
+    // Mentor message + quote both come from the lookup. Voiced together
+    // so the first dashboard entry stays consistent with realm switching.
+    let msg = "";
+    let quote = null;
     if (pid && archetype) {
-      const msg = getFirstMessage(selectedDomain, pid, archetype.id);
-      if (msg) setMentorRaw(msg);
-    } else {
-      setMentorRaw("");
+      msg = getFirstMessage(selectedDomain, pid, archetype.id);
+      quote = selectQuoteByTags(
+        getQuoteTags(selectedDomain, pid),
+        `dashboard-${pid}-${day}`,
+      );
     }
+    setMentorRaw(msg);
+    setDashboardQuote(quote);
     setScreen("dashboard");
+
+    const voiceForTts = selectedVoice?.voiceId || archetype?.voiceId;
+    if (!muted && msg && voiceForTts) {
+      const fullText = quote
+        ? `${msg}\n\nAs ${quote.author} put it — "${quote.text}"`
+        : msg;
+      const audioUrl = await fetchVoice(fullText, voiceForTts);
+      if (audioUrl && audio) {
+        await audio.play(audioUrl);
+        setIsPlaying(true);
+      }
+    }
   };
 
   // Switch the dashboard's active realm to a different problem in the
-  // same domain. Pulls the mentor message straight from the lookup and
-  // voices it in the user's chosen voice.
+  // same domain. Pulls the mentor message + quote straight from the
+  // lookup and voices them in the user's chosen voice.
   const switchActiveProblem = async (problemId) => {
     if (!problemId || problemId === activeProblemId) {
       setShowOtherRealms(false);
@@ -1088,11 +1107,19 @@ export default function BurnoutDemo() {
     const newMessage = archetype
       ? getFirstMessage(selectedDomain, problemId, archetype.id)
       : "";
+    const newQuote = selectQuoteByTags(
+      getQuoteTags(selectedDomain, problemId),
+      `dashboard-${problemId}-${day}`,
+    );
     setMentorRaw(newMessage);
+    setDashboardQuote(newQuote);
 
     const voiceForTts = selectedVoice?.voiceId || archetype?.voiceId;
     if (!muted && newMessage && voiceForTts) {
-      const audioUrl = await fetchVoice(newMessage, voiceForTts);
+      const fullText = newQuote
+        ? `${newMessage}\n\nAs ${newQuote.author} put it — "${newQuote.text}"`
+        : newMessage;
+      const audioUrl = await fetchVoice(fullText, voiceForTts);
       if (audioUrl && audio) {
         await audio.play(audioUrl);
         setIsPlaying(true);
@@ -2140,24 +2167,28 @@ export default function BurnoutDemo() {
           </div>
         )}
 
-        {/* Mentor message — bridge text + quote — with the archetype mandala beside it */}
-        <div style={{ padding: "0.9rem 1rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, marginBottom: 14, minHeight: 80, display: "flex", gap: 12, alignItems: "flex-start" }}>
+        {/* Mentor message + quote — lookup-driven, no Mistral streaming. */}
+        <div style={{ padding: "1.1rem 1.3rem", background: "var(--deep)", borderLeft: `2px solid ${archetype.color}`, marginBottom: 22, minHeight: 80, display: "flex", gap: 14, alignItems: "flex-start" }}>
           <div style={{ flexShrink: 0, paddingTop: 2 }}>
-            <Mandala archetypeId={archetype.id} color={archetype.color} concept={mentorParsed.concept} size={112} />
+            <Mandala archetypeId={archetype.id} color={archetype.color} concept="opening" size={112} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mono" style={{ fontSize: "8px", color: archetype.color, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 6 }}>
+            <div className="mono" style={{ fontSize: "10px", color: archetype.color, letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: 8 }}>
               {archetype.name} · {archetype.figure}
             </div>
-            {mentorLoading ? (
-              <div className="serif" style={{ fontSize: "0.9rem", fontStyle: "italic", color: "var(--silver)" }}>
-                {archetype.name} is contemplating...
+            <p className="serif" style={{ fontSize: "1.05rem", fontStyle: "italic", color: "var(--cream)", lineHeight: 1.6, margin: 0 }}>
+              {mentorRaw}
+            </p>
+
+            {dashboardQuote && (
+              <div style={{ borderLeft: "2px solid var(--gold)", paddingLeft: 12, marginTop: 14 }}>
+                <p className="serif" style={{ fontSize: "0.95rem", color: "var(--cream)", fontStyle: "italic", lineHeight: 1.5, marginBottom: 6 }}>
+                  "{dashboardQuote.text}"
+                </p>
+                <p className="mono" style={{ fontSize: "9px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.22em", textTransform: "uppercase" }}>
+                  — {dashboardQuote.author}
+                </p>
               </div>
-            ) : (
-              <>
-                <AnimatedText text={mentorParsed.text} color={archetype.color} />
-                <QuoteBlock quote={mentorParsed.quote} author={mentorParsed.author} color={archetype.color} />
-              </>
             )}
           </div>
         </div>

@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import Mandala from "../lib/Mandala";
 import SignatureScene from "../lib/SignatureScene";
+import Constellation from "../lib/Constellation";
 import { getAudioController } from "../lib/AudioController";
 import { selectQuote, selectQuoteByTags, formatQuoteForSpeech } from "../lib/quotes";
 import {
@@ -26,6 +27,7 @@ import {
   getHeroScene,
   getJourney,
   getQuoteTags,
+  getLearning,
 } from "../lib/config/onboarding";
 import {
   VOICES,
@@ -501,6 +503,9 @@ export default function BurnoutDemo() {
   // Shadow screen has its own mentor reply state so it doesn't clobber the
   // dashboard's mentorRaw when the user returns.
   const [shadowReplyRaw, setShadowReplyRaw] = useState("");
+  // Constellation completion, keyed by problemId. Each entry is a Set of
+  // node ids. Persists across realm switches.
+  const [completedLearning, setCompletedLearning] = useState({});
   // Activities use problemId-keyed completion (analog of completedByRealm).
   const [completedByProblem, setCompletedByProblem] = useState({});
 
@@ -900,6 +905,18 @@ export default function BurnoutDemo() {
     setShowOtherRealms(false);
     setMentorRaw("");
     setTimeout(() => generateMentor("realm_briefing"), 200);
+  };
+
+  // Toggle a Constellation node's completion for the active problem.
+  const toggleLearningNode = (nodeId) => {
+    const pid = activeProblemId || diagnosis?.problemId;
+    if (!pid) return;
+    setCompletedLearning(prev => {
+      const set = new Set(prev[pid] || []);
+      if (set.has(nodeId)) set.delete(nodeId);
+      else set.add(nodeId);
+      return { ...prev, [pid]: set };
+    });
   };
 
   // Activity completion (lookup-table driven, keyed off the currently
@@ -1681,6 +1698,13 @@ export default function BurnoutDemo() {
     const allDomainProblems = selectedDomain ? getAllProblems(selectedDomain) : [];
     const otherProblems = allDomainProblems.filter(p => p.id !== dashProblemId);
     const isDiagnosedActive = diagnosis && dashProblemId === diagnosis.problemId;
+    // Constellation — knowledge dimension for the active problem
+    const learning = (selectedDomain && dashProblemId)
+      ? getLearning(selectedDomain, dashProblemId)
+      : null;
+    const learningCompleted = dashProblemId
+      ? (completedLearning[dashProblemId] || new Set())
+      : new Set();
 
     return (
       <div className="shell" style={{ padding: "1.2rem 1.4rem 2rem" }}>
@@ -1798,37 +1822,57 @@ export default function BurnoutDemo() {
           </div>
         </div>
 
-        {/* Activities — config-driven, keyed by diagnosed problem */}
-        {activities.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <div className="section-label">YOUR PRACTICE</div>
-            {activities.map((a, i) => {
-              const done = problemDoneIdx.includes(`${i}`);
-              return (
-                <div key={a.id} style={{
-                  padding: "0.85rem 1rem",
-                  background: done ? "rgba(201,168,76,0.05)" : "var(--slate)",
-                  border: `1px solid ${done ? "var(--gold-dim)" : "rgba(255,255,255,0.04)"}`,
-                  marginBottom: 4, opacity: done ? 0.65 : 1,
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                    <div className="serif" style={{ color: "var(--cream)", fontSize: "0.95rem", lineHeight: 1.3 }}>
-                      {done ? "✓ " : ""}{a.name}
+        {/* Two-track view — practice on the left, knowledge on the right.
+            Stacks vertically below 640px viewports. */}
+        {(activities.length > 0 || learning) && (
+          <div className="two-track" style={{ marginBottom: 12 }}>
+            {activities.length > 0 && (
+              <div>
+                <div className="section-label">THE PATH</div>
+                {activities.map((a, i) => {
+                  const done = problemDoneIdx.includes(`${i}`);
+                  return (
+                    <div key={a.id} style={{
+                      padding: "0.85rem 1rem",
+                      background: done ? "rgba(201,168,76,0.05)" : "var(--slate)",
+                      border: `1px solid ${done ? "var(--gold-dim)" : "rgba(255,255,255,0.04)"}`,
+                      marginBottom: 4, opacity: done ? 0.65 : 1,
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                        <div className="serif" style={{ color: "var(--cream)", fontSize: "0.95rem", lineHeight: 1.3 }}>
+                          {done ? "✓ " : ""}{a.name}
+                        </div>
+                        <div className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                          {a.cadence}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "0.76rem", color: "var(--silver)", marginBottom: 8, lineHeight: 1.5, fontStyle: "italic" }}>{a.description}</div>
+                      {!done && (
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+                          <button onClick={() => completeActivity(a, i)}
+                            style={{ padding: "5px 12px", border: `1px solid ${archetype.color}`, background: "transparent", color: archetype.color, fontSize: "0.7rem", fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>DONE</button>
+                        </div>
+                      )}
                     </div>
-                    <div className="mono" style={{ fontSize: "8px", color: "var(--gold-dim)", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                      {a.cadence}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: "0.76rem", color: "var(--silver)", marginBottom: 8, lineHeight: 1.5, fontStyle: "italic" }}>{a.description}</div>
-                  {!done && (
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-                      <button onClick={() => completeActivity(a, i)}
-                        style={{ padding: "5px 12px", border: `1px solid ${archetype.color}`, background: "transparent", color: archetype.color, fontSize: "0.7rem", fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>DONE</button>
-                    </div>
-                  )}
+                  );
+                })}
+                <div className="mono" style={{ marginTop: 6, fontSize: "9px", color: "var(--silver)", letterSpacing: "0.2em" }}>
+                  {problemDoneIdx.length} OF {activities.length} DONE
                 </div>
-              );
-            })}
+              </div>
+            )}
+
+            {learning && (
+              <div>
+                <div className="section-label">THE CONSTELLATION</div>
+                <Constellation
+                  learning={learning}
+                  completed={learningCompleted}
+                  onToggle={toggleLearningNode}
+                  color={archetype.color}
+                />
+              </div>
+            )}
           </div>
         )}
 

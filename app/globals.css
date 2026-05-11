@@ -186,3 +186,15 @@ body {
 
 .load-check.done { background: var(--gold); color: var(--void); border-color: var(--gold); }
 .load-check.loading { animation: loadingPulse 1s infinite; }
+
+/* Two-track dashboard layout — practice + constellation.
+   Stacks vertically below 640px so the constellation has room. */
+.two-track {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .two-track { grid-template-columns: 1fr; gap: 22px; }
+}

@@ -1056,17 +1056,25 @@ export default function BurnoutDemo() {
   const handleEnterDashboard = async () => {
     if (audio) { audio.unlock(); audio.stop(); }
     setIsPlaying(false);
-    setMentorRaw("");
-    // Fallback init for activeProblemId in case it wasn't seeded earlier.
-    if (!activeProblemId && diagnosis?.problemId) {
-      setActiveProblemId(diagnosis.problemId);
+    // Resolve the active realm — seed from the diagnosed problem if it
+    // hasn't been set yet.
+    const pid = activeProblemId || diagnosis?.problemId || null;
+    if (pid && !activeProblemId) setActiveProblemId(pid);
+    // Mentor message comes from the lookup table, not the legacy
+    // realm_briefing pipeline, so first-entry stays consistent with
+    // what subsequent realm-switches show.
+    if (pid && archetype) {
+      const msg = getFirstMessage(selectedDomain, pid, archetype.id);
+      if (msg) setMentorRaw(msg);
+    } else {
+      setMentorRaw("");
     }
     setScreen("dashboard");
-    setTimeout(() => generateMentor("realm_briefing"), 400);
   };
 
   // Switch the dashboard's active realm to a different problem in the
-  // same domain. Triggers a fresh mentor briefing.
+  // same domain. Pulls the mentor message straight from the lookup and
+  // voices it in the user's chosen voice.
   const switchActiveProblem = async (problemId) => {
     if (!problemId || problemId === activeProblemId) {
       setShowOtherRealms(false);
@@ -1076,8 +1084,20 @@ export default function BurnoutDemo() {
     setIsPlaying(false);
     setActiveProblemId(problemId);
     setShowOtherRealms(false);
-    setMentorRaw("");
-    setTimeout(() => generateMentor("realm_briefing"), 200);
+
+    const newMessage = archetype
+      ? getFirstMessage(selectedDomain, problemId, archetype.id)
+      : "";
+    setMentorRaw(newMessage);
+
+    const voiceForTts = selectedVoice?.voiceId || archetype?.voiceId;
+    if (!muted && newMessage && voiceForTts) {
+      const audioUrl = await fetchVoice(newMessage, voiceForTts);
+      if (audioUrl && audio) {
+        await audio.play(audioUrl);
+        setIsPlaying(true);
+      }
+    }
   };
 
   // Toggle a Constellation node's completion for the active problem.

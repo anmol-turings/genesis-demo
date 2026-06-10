@@ -1293,9 +1293,23 @@ export default function BurnoutDemo() {
                 color: "inherit",
               }}
             >
-              <div className="serif" style={{ fontSize: "1.25rem", color: "var(--cream)", marginBottom: 6 }}>
+              <div className="serif" style={{ fontSize: "1.25rem", color: "var(--cream)", marginBottom: d.subtitle ? 4 : 6 }}>
                 {d.name}
               </div>
+              {d.subtitle && (
+                <div
+                  className="mono"
+                  style={{
+                    fontSize: "10px",
+                    color: "rgba(255,255,255,0.4)",
+                    letterSpacing: "0.22em",
+                    textTransform: "uppercase",
+                    marginBottom: 6,
+                  }}
+                >
+                  {d.subtitle}
+                </div>
+              )}
               <div style={{ fontSize: "0.88rem", color: "var(--silver)", lineHeight: 1.5 }}>
                 {d.blurb}
               </div>
@@ -1342,7 +1356,7 @@ export default function BurnoutDemo() {
             Show me the specific areas
           </div>
           <div style={{ fontSize: "0.95rem", color: "var(--silver)", lineHeight: 1.55 }}>
-            I'll pick from a short list of {domain.name.toLowerCase()} areas.
+            I'll pick from what could be better in {domain.name.toLowerCase()}.
           </div>
         </button>
 
@@ -1401,10 +1415,10 @@ export default function BurnoutDemo() {
       <div className="shell" style={{ padding: "2.75rem 2rem" }}>
         <div className="section-label">{domain.name.toUpperCase()}</div>
         <h2 className="serif" style={{ fontSize: "1.95rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.25 }}>
-          Which one is heaviest right now?
+          What could be better right now?
         </h2>
         <p style={{ fontSize: "1.05rem", color: "var(--silver)", lineHeight: 1.6, marginBottom: 26 }}>
-          Pick the one that fits. If none does, the discovery path can surface something more specific.
+          Pick what fits. If none does, the five questions can surface something more specific.
         </p>
 
         {problems.map(p => (
@@ -1524,6 +1538,18 @@ export default function BurnoutDemo() {
           <SignatureScene sceneId="who-stays" size={460} />
         </div>
 
+        <div
+          className="mono"
+          style={{
+            fontSize: "10px",
+            color: "var(--gold-dim)",
+            letterSpacing: "0.28em",
+            textTransform: "uppercase",
+            marginBottom: 8,
+          }}
+        >
+          WHAT COULD BE BETTER
+        </div>
         <h2 className="serif" style={{ fontSize: "1.9rem", color: "var(--cream)", marginBottom: 16, lineHeight: 1.25 }}>
           {journey.title}
         </h2>

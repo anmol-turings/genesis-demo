@@ -19,7 +19,8 @@ import {
   getDomain,
   getDomainList,
   getQuestions,
-  diagnoseProblem,
+  getIntents,
+  diagnose,
   getProblem,
   getAllProblems,
   getFirstMessage,
@@ -651,9 +652,10 @@ export default function BurnoutDemo() {
   // Quote shown beneath the dashboard mentor message. Re-picked on realm
   // switch; stable across re-renders for the same realm-on-same-day.
   const [dashboardQuote, setDashboardQuote] = useState(null);
-  // After domain pick: 'specific' (skip scenarios, direct problem pick) or
-  // 'discover' (existing 5-question scenario flow).
-  const [pathChoice, setPathChoice] = useState(null);
+  // After domain pick: the user picks an intent — 'assess', 'manage', or
+  // 'optimize'. The intent determines which 5 scenario questions run and
+  // which destination set the diagnosis routes into.
+  const [selectedIntent, setSelectedIntent] = useState(null);
   // Activities use problemId-keyed completion (analog of completedByRealm).
   const [completedByProblem, setCompletedByProblem] = useState({});
 
@@ -889,53 +891,45 @@ export default function BurnoutDemo() {
   const handleDomainPick = (domainId) => {
     if (audio) audio.unlock();
     setSelectedDomain(domainId);
+    setSelectedIntent(null);
     setScenarioIdx(0);
     setScenarioAnswers([]);
-    setPathChoice(null);
-    setScreen("domain-path-choice");
+    setScreen("intent-pick");
   };
 
-  const handleChoosePath = (choice) => {
+  const handleChooseIntent = (intentId) => {
     if (audio) audio.unlock();
-    setPathChoice(choice);
-    if (choice === "discover") {
-      setScenarioIdx(0);
-      setScenarioAnswers([]);
-      setScreen("scenario");
-    } else {
-      setScreen("problem-pick");
-    }
+    setSelectedIntent(intentId);
+    setScenarioIdx(0);
+    setScenarioAnswers([]);
+    setScreen("scenario");
   };
 
-  // Direct problem pick — bypasses scenario diagnosis. Synthesises a
-  // minimal `diagnosis` object so the rest of the flow keeps working.
-  const handlePickProblem = (problemId) => {
+  const handleScenarioAnswer = (optionIndex) => {
     if (audio) audio.unlock();
-    setDiagnosis({
-      problemId,
-      score: null,
-      runnerUpId: null,
-      runnerUpScore: 0,
-      tally: {},
-    });
-    setActiveProblemId(problemId);
-    setScreen("problem-reveal");
-  };
-
-  const handleScenarioAnswer = (optionId) => {
-    if (audio) audio.unlock();
-    const questions = getQuestions(selectedDomain);
-    const currentQ = questions[scenarioIdx];
-    const newAnswers = [...scenarioAnswers, { questionId: currentQ.id, optionId }];
+    const questions = getQuestions(selectedDomain, selectedIntent);
+    const newAnswers = [
+      ...scenarioAnswers,
+      { questionIndex: scenarioIdx, optionIndex },
+    ];
     setScenarioAnswers(newAnswers);
 
     if (scenarioIdx + 1 < questions.length) {
       setScenarioIdx(scenarioIdx + 1);
-    } else {
-      const result = diagnoseProblem(selectedDomain, newAnswers);
-      setDiagnosis(result);
-      setScreen("problem-reveal");
+      return;
     }
+
+    // Diagnose. The v2 diagnose() returns { destinationId, intent, ... }.
+    // The rest of the app still reads `diagnosis.problemId`, so we alias
+    // destinationId → problemId on the way out.
+    const diag = diagnose(selectedDomain, selectedIntent, newAnswers);
+    const destinationId = diag?.destinationId ?? null;
+    const wrapped = diag
+      ? { ...diag, problemId: destinationId }
+      : { problemId: null, destinationId: null, intent: selectedIntent, score: 0, runnerUpId: null, runnerUpScore: 0, tally: {} };
+    setDiagnosis(wrapped);
+    if (destinationId) setActiveProblemId(destinationId);
+    setScreen("problem-reveal");
   };
 
   const handleAcceptProblem = () => {
@@ -1321,70 +1315,69 @@ export default function BurnoutDemo() {
   }
 
   // ─── DOMAIN PATH CHOICE (specific vs discovery) ────────────────────
-  if (screen === "domain-path-choice") {
+  // ─── INTENT PICK (assess / manage / optimize) ──────────────────────
+  if (screen === "intent-pick") {
     const domain = getDomain(selectedDomain);
-    if (!domain) return null;
+    const intents = getIntents(selectedDomain);
+    if (!domain || !intents.length) return null;
+
+    const tierFills = {
+      assess:   "#1e3a8a",
+      manage:   "#7f1d1d",
+      optimize: "#14532d",
+    };
+
     return (
       <div className="shell" style={{ padding: "2.75rem 2rem" }}>
         <div className="section-label">{domain.name.toUpperCase()}</div>
         <h2 className="serif" style={{ fontSize: "1.95rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.25 }}>
-          Do you know what you want to work on?
+          What kind of help do you want?
         </h2>
         <p style={{ fontSize: "1.05rem", color: "var(--silver)", lineHeight: 1.6, marginBottom: 28 }}>
-          Some people arrive with a clear ache. Others want help finding it. Both are fine — pick the door that fits.
+          Three doors. Pick the one that fits where you actually are with this.
         </p>
 
-        <button
-          onClick={() => handleChoosePath("specific")}
-          style={{
-            display: "block",
-            width: "100%",
-            textAlign: "left",
-            padding: "1.5rem 1.6rem",
-            marginBottom: 14,
-            background: "var(--deep)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            color: "inherit",
-          }}
-        >
-          <div className="mono" style={{ fontSize: "10px", letterSpacing: "0.22em", color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>
-            I KNOW
-          </div>
-          <div className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)", marginBottom: 6, lineHeight: 1.3 }}>
-            Show me the specific areas
-          </div>
-          <div style={{ fontSize: "0.95rem", color: "var(--silver)", lineHeight: 1.55 }}>
-            I'll pick from what could be better in {domain.name.toLowerCase()}.
-          </div>
-        </button>
-
-        <button
-          onClick={() => handleChoosePath("discover")}
-          style={{
-            display: "block",
-            width: "100%",
-            textAlign: "left",
-            padding: "1.5rem 1.6rem",
-            marginBottom: 14,
-            background: "var(--deep)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            color: "inherit",
-          }}
-        >
-          <div className="mono" style={{ fontSize: "10px", letterSpacing: "0.22em", color: "var(--gold)", textTransform: "uppercase", marginBottom: 8 }}>
-            HELP ME FIND IT
-          </div>
-          <div className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)", marginBottom: 6, lineHeight: 1.3 }}>
-            Walk me through five questions
-          </div>
-          <div style={{ fontSize: "0.95rem", color: "var(--silver)", lineHeight: 1.55 }}>
-            Short scenarios surface where the weight really is.
-          </div>
-        </button>
+        {intents.map(intent => (
+          <button
+            key={intent.tier}
+            onClick={() => handleChooseIntent(intent.tier)}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              padding: "1.5rem 1.6rem",
+              marginBottom: 14,
+              background: "var(--deep)",
+              borderLeft: `4px solid ${tierFills[intent.tier]}`,
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderLeftWidth: 4,
+              borderLeftStyle: "solid",
+              borderLeftColor: tierFills[intent.tier],
+              cursor: "pointer",
+              fontFamily: "inherit",
+              color: "inherit",
+            }}
+          >
+            <div
+              className="mono"
+              style={{
+                fontSize: "10px",
+                letterSpacing: "0.22em",
+                color: tierFills[intent.tier],
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              {intent.tier}
+            </div>
+            <div className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)", marginBottom: 6, lineHeight: 1.3 }}>
+              {intent.name}
+            </div>
+            <div style={{ fontSize: "0.95rem", color: "var(--silver)", lineHeight: 1.55 }}>
+              {intent.desc}
+            </div>
+          </button>
+        ))}
 
         <button
           onClick={() => setScreen("domain-pick")}
@@ -1406,70 +1399,9 @@ export default function BurnoutDemo() {
     );
   }
 
-  // ─── PROBLEM PICK (direct, for users who already know) ─────────────
-  if (screen === "problem-pick") {
-    const domain = getDomain(selectedDomain);
-    const problems = selectedDomain ? getAllProblems(selectedDomain) : [];
-    if (!domain) return null;
-    return (
-      <div className="shell" style={{ padding: "2.75rem 2rem" }}>
-        <div className="section-label">{domain.name.toUpperCase()}</div>
-        <h2 className="serif" style={{ fontSize: "1.95rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.25 }}>
-          What could be better right now?
-        </h2>
-        <p style={{ fontSize: "1.05rem", color: "var(--silver)", lineHeight: 1.6, marginBottom: 26 }}>
-          Pick what fits. If none does, the five questions can surface something more specific.
-        </p>
-
-        {problems.map(p => (
-          <button
-            key={p.id}
-            onClick={() => handlePickProblem(p.id)}
-            style={{
-              display: "block",
-              width: "100%",
-              textAlign: "left",
-              padding: "1.4rem 1.6rem",
-              marginBottom: 12,
-              background: "var(--deep)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              color: "inherit",
-            }}
-          >
-            <div className="serif" style={{ fontSize: "1.25rem", color: "var(--cream)", marginBottom: 6, lineHeight: 1.3 }}>
-              {p.journey?.title || p.name}
-            </div>
-            <div style={{ fontSize: "0.95rem", color: "var(--silver)", lineHeight: 1.55 }}>
-              {p.journey?.opening || p.shortDescription}
-            </div>
-          </button>
-        ))}
-
-        <button
-          onClick={() => setScreen("domain-path-choice")}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "var(--silver)",
-            fontSize: "0.85rem",
-            textDecoration: "underline",
-            marginTop: 14,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            padding: 0,
-          }}
-        >
-          ← Help me discover instead
-        </button>
-      </div>
-    );
-  }
-
-  // ─── SCENARIO QUESTIONS (onboarding v2 step 2) ─────────────────────
+  // ─── SCENARIO QUESTIONS (intent-driven) ────────────────────────────
   if (screen === "scenario") {
-    const questions = getQuestions(selectedDomain);
+    const questions = getQuestions(selectedDomain, selectedIntent);
     const q = questions[scenarioIdx];
     const domain = getDomain(selectedDomain);
     const total = questions.length;
@@ -1491,10 +1423,10 @@ export default function BurnoutDemo() {
           {q.prompt}
         </h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {q.options.map(opt => (
+          {q.options.map((opt, idx) => (
             <button
-              key={opt.id}
-              onClick={() => handleScenarioAnswer(opt.id)}
+              key={idx}
+              onClick={() => handleScenarioAnswer(idx)}
               style={{
                 padding: "1.2rem 1.4rem",
                 background: "var(--deep)",
@@ -1548,7 +1480,10 @@ export default function BurnoutDemo() {
             marginBottom: 8,
           }}
         >
-          WHAT COULD BE BETTER
+          {selectedIntent === "assess"   && "YOUR STARTING POINT"}
+          {selectedIntent === "manage"   && "WHAT NEEDS HELP"}
+          {selectedIntent === "optimize" && "WHERE TO PUSH"}
+          {!selectedIntent && "WHAT COULD BE BETTER"}
         </div>
         <h2 className="serif" style={{ fontSize: "1.9rem", color: "var(--cream)", marginBottom: 16, lineHeight: 1.25 }}>
           {journey.title}

@@ -21,6 +21,7 @@ import {
   getQuestions,
   getIntents,
   diagnose,
+  getDestinations,
   getProblem,
   getAllProblems,
   getFirstMessage,
@@ -921,12 +922,17 @@ export default function BurnoutDemo() {
 
     // Diagnose. The v2 diagnose() returns { destinationId, intent, ... }.
     // The rest of the app still reads `diagnosis.problemId`, so we alias
-    // destinationId → problemId on the way out.
+    // destinationId → problemId on the way out. If the user opted out of
+    // every question, fall back to the first Manage destination so the
+    // reveal screen isn't blank.
     const diag = diagnose(selectedDomain, selectedIntent, newAnswers);
-    const destinationId = diag?.destinationId ?? null;
+    const destinationId =
+      diag?.destinationId ??
+      getDestinations(selectedDomain, 'manage')[0]?.id ??
+      null;
     const wrapped = diag
       ? { ...diag, problemId: destinationId }
-      : { problemId: null, destinationId: null, intent: selectedIntent, score: 0, runnerUpId: null, runnerUpScore: 0, tally: {} };
+      : { problemId: destinationId, destinationId, intent: selectedIntent, score: 0, runnerUpId: null, runnerUpScore: 0, tally: {} };
     setDiagnosis(wrapped);
     if (destinationId) setActiveProblemId(destinationId);
     setScreen("problem-reveal");
@@ -1439,7 +1445,12 @@ export default function BurnoutDemo() {
                 lineHeight: 1.45,
               }}
             >
-              {opt.text}
+              <span style={{
+                opacity: opt.optOut ? 0.55 : 1,
+                fontStyle: opt.optOut ? "italic" : "normal",
+              }}>
+                {opt.text}
+              </span>
             </button>
           ))}
         </div>

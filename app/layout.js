@@ -1,7 +1,7 @@
 import './globals.css';
 export const metadata = {
-  title: 'Recovery — A Burnout Prevention Program',
-  description: 'Before burnout becomes a diagnosis, it becomes a drift.',
+  title: 'The Ride — A Guided Wellbeing Journey',
+  description: 'A guided journey of reflection, practice, and steadier rhythm — one passage at a time.',
 };
 export default function RootLayout({ children }) {
   return <html lang="en"><body>{children}</body></html>;

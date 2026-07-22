@@ -196,6 +196,36 @@ function QuoteBlock({ quote, author, color }) {
   );
 }
 
+// Safety boundary — plain, visible, outside the game narrative. Shown at the
+// first check-in, at the suggested starting point, and on the dashboard.
+// Deliberately un-styled relative to the mythic chrome: no points, no gold.
+function SafetyNote({ showBoundary }) {
+  return (
+    <div style={{
+      marginTop: 26,
+      padding: "0.8rem 1rem",
+      border: "1px solid rgba(255,255,255,0.12)",
+      background: "rgba(255,255,255,0.03)",
+      fontSize: "0.75rem",
+      color: "var(--silver)",
+      lineHeight: 1.6,
+    }}>
+      {showBoundary && (
+        <p style={{ margin: 0, marginBottom: 6 }}>
+          This experience supports reflection and everyday wellbeing. It does not
+          provide medical advice or a diagnosis.
+        </p>
+      )}
+      <p style={{ margin: 0 }}>
+        If you are in severe distress, having thoughts of self-harm, or finding it
+        hard to function day to day, please reach out to a doctor or mental health
+        professional now. In an emergency, call your local emergency number.
+        In Singapore: SOS at 1767 (24 hours).
+      </p>
+    </div>
+  );
+}
+
 function ShadowIndicator({ recoveryScore, shadowName, onClick }) {
   const opacity = Math.max(0.25, 0.95 - (recoveryScore / 100) * 0.7);
   return (
@@ -1316,6 +1346,7 @@ export default function BurnoutDemo() {
             </button>
           ))}
         </div>
+        <SafetyNote showBoundary />
       </div>
     );
   }
@@ -1331,6 +1362,12 @@ export default function BurnoutDemo() {
       assess:   "#1e3a8a",
       manage:   "#7f1d1d",
       optimize: "#14532d",
+    };
+    // Display-only labels — internal tier ids stay assess/manage/optimize.
+    const tierLabels = {
+      assess:   "Take Stock",
+      manage:   "Steady What’s Strained",
+      optimize: "Build What’s Next",
     };
 
     return (
@@ -1374,7 +1411,7 @@ export default function BurnoutDemo() {
                 marginBottom: 8,
               }}
             >
-              {intent.tier}
+              {tierLabels[intent.tier] || intent.tier}
             </div>
             <div className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)", marginBottom: 6, lineHeight: 1.3 }}>
               {intent.name}
@@ -1491,10 +1528,10 @@ export default function BurnoutDemo() {
             marginBottom: 8,
           }}
         >
-          {selectedIntent === "assess"   && "YOUR STARTING POINT"}
-          {selectedIntent === "manage"   && "WHAT NEEDS HELP"}
-          {selectedIntent === "optimize" && "WHERE TO PUSH"}
-          {!selectedIntent && "WHAT COULD BE BETTER"}
+          {selectedIntent === "assess"   && "A SUGGESTED STARTING POINT"}
+          {selectedIntent === "manage"   && "A SUGGESTED FOCUS"}
+          {selectedIntent === "optimize" && "A SUGGESTED PATH"}
+          {!selectedIntent && "A PLACE TO BEGIN"}
         </div>
         <h2 className="serif" style={{ fontSize: "1.9rem", color: "var(--cream)", marginBottom: 16, lineHeight: 1.25 }}>
           {journey.title}
@@ -1544,6 +1581,7 @@ export default function BurnoutDemo() {
             Pick a different area
           </button>
         </div>
+        <SafetyNote showBoundary />
       </div>
     );
   }
@@ -2221,7 +2259,7 @@ export default function BurnoutDemo() {
               );
             })}
             <div className="mono" style={{ marginTop: 4, fontSize: "9px", color: "var(--silver)", letterSpacing: "0.2em" }}>
-              {problemDoneIdx.length} OF {activities.length} DONE
+              {problemDoneIdx.length} OF {activities.length} PRACTICES EXPLORED
             </div>
           </div>
         )}
@@ -2318,6 +2356,8 @@ export default function BurnoutDemo() {
             ))}
           </div>
         )}
+
+        <SafetyNote />
 
       </div>
     );

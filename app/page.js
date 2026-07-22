@@ -114,6 +114,17 @@ function truncateToSentences(text, maxSentences = 2) {
   return sentences.join(" ");
 }
 
+// Post-generation language guard. The system prompt forbids clinical
+// vocabulary, but the model can still slip — so nothing generated is
+// rendered, voiced, or cached without passing this check. One corrective
+// retry, then a safe non-clinical fallback bridge.
+const CLINICAL_LANGUAGE_RE = /\b(assessment|assessed|diagnos\w*|symptom\w*|disorder\w*|treatment\w*|patient\w*|burn(?:ed|t)?[ -]?out|prognosis|risk score|recovery program)\b/i;
+const DIAGNOSTIC_CERTAINTY_RE = /\b(this means you|the diagnosis|you are (?:depressed|anxious|ill|sick|broken))\b/i;
+const SAFE_FALLBACK_BRIDGE = "Notice what today is *offering* you — a small place to begin is enough.";
+function violatesMentorLanguage(text) {
+  return CLINICAL_LANGUAGE_RE.test(text || "") || DIAGNOSTIC_CERTAINTY_RE.test(text || "");
+}
+
 function AnimatedText({ text, color }) {
   if (!text) return null;
   const tokens = text.split(/(\s+)/).filter(Boolean);
@@ -825,9 +836,21 @@ export default function BurnoutDemo() {
       userPrompt = buildAspirationalPrompt(userName, persona, profile, archetype, quote);
     }
 
-    // Step 6: get Mistral's bridge sentences.
-    const mistralRaw = await fetchMentor(systemPrompt, userPrompt);
+    // Step 6: get Mistral's bridge sentences. Validate against the
+    // clinical-language guard before anything downstream (render, TTS,
+    // cache) sees it — one corrective retry, then the safe fallback.
+    let mistralRaw = await fetchMentor(systemPrompt, userPrompt);
     if (!prewarm && audio && audio.isStale(myReqId)) return;
+    if (violatesMentorLanguage(mistralRaw)) {
+      mistralRaw = await fetchMentor(
+        systemPrompt,
+        `${userPrompt}\n\nIMPORTANT: Your previous attempt used forbidden clinical vocabulary or diagnostic certainty. Rewrite the bridge with none of the forbidden words and no claims about the listener's condition.`
+      );
+      if (!prewarm && audio && audio.isStale(myReqId)) return;
+      if (violatesMentorLanguage(mistralRaw)) {
+        mistralRaw = `${SAFE_FALLBACK_BRIDGE} [concept:default]`;
+      }
+    }
 
     // Pull out the [concept:xxx] tag, truncate the prose to <=2 sentences,
     // then re-attach the tag and the quote/author tags.
@@ -2357,7 +2380,7 @@ export default function BurnoutDemo() {
           </div>
         )}
 
-        <SafetyNote />
+        <SafetyNote showBoundary />
 
       </div>
     );

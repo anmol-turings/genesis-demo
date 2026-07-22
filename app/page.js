@@ -5,6 +5,7 @@ import SignatureScene from "../lib/SignatureScene";
 import Constellation from "../lib/Constellation";
 import { getAudioController } from "../lib/AudioController";
 import { selectQuote, selectQuoteByTags, formatQuoteForSpeech } from "../lib/quotes";
+import { violatesMentorLanguage, SAFE_FALLBACK_BRIDGE } from "../lib/mentorLanguage.mjs";
 import {
   PERSONAS, ASSESSMENT_CATEGORIES, usernameToPersona, computeProfile,
   ARCHETYPES, TONE_STYLES, REALMS, RECOVERY_STAGES,
@@ -112,17 +113,6 @@ function truncateToSentences(text, maxSentences = 2) {
   }
   if (sentences.length === 0) return stripped; // no sentence boundary found
   return sentences.join(" ");
-}
-
-// Post-generation language guard. The system prompt forbids clinical
-// vocabulary, but the model can still slip — so nothing generated is
-// rendered, voiced, or cached without passing this check. One corrective
-// retry, then a safe non-clinical fallback bridge.
-const CLINICAL_LANGUAGE_RE = /\b(assessment|assessed|diagnos\w*|symptom\w*|disorder\w*|treatment\w*|patient\w*|burn(?:ed|t)?[ -]?out|prognosis|risk score|recovery program)\b/i;
-const DIAGNOSTIC_CERTAINTY_RE = /\b(this means you|the diagnosis|you are (?:depressed|anxious|ill|sick|broken))\b/i;
-const SAFE_FALLBACK_BRIDGE = "Notice what today is *offering* you — a small place to begin is enough.";
-function violatesMentorLanguage(text) {
-  return CLINICAL_LANGUAGE_RE.test(text || "") || DIAGNOSTIC_CERTAINTY_RE.test(text || "");
 }
 
 function AnimatedText({ text, color }) {

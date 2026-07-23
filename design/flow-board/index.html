@@ -12,6 +12,7 @@
       <defs>
         <marker id="arrow-current" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#70757d"/></marker>
         <marker id="arrow-proposed" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4d8fff"/></marker>
+        <marker id="arrow-revision" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#7657c8"/></marker>
         <marker id="arrow-unavailable" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#9b7e52"/></marker>
       </defs>
       <g id="connector-lines"></g>
@@ -25,6 +26,7 @@
       <aside class="legend" aria-label="Connector legend">
         <span class="legend-item"><i class="legend-swatch"></i>Current navigation</span>
         <span class="legend-item"><i class="legend-swatch proposed"></i>Proposed navigation</span>
+        <span class="legend-item"><i class="legend-swatch revision"></i>Revised screen (replaces current dashboard)</span>
         <span class="legend-item"><i class="legend-swatch return"></i>Return to dashboard</span>
         <span class="legend-item"><i class="legend-swatch unavailable"></i>Unavailable evidence</span>
       </aside>
@@ -46,26 +48,35 @@
           <div class="wire-kicker">The Ride · Week 3</div><div class="wire-title">Welcome back, S. Williams.</div>
           <div class="wire-card compact-card"><h4>Active focus · Restoring your baseline</h4><p>Small, repeatable actions for steadier energy.</p></div>
           <div class="wire-card mentor-card"><h4>Mentor message</h4><p>“Notice what today is offering you. One deliberate step is enough.”</p></div>
-          <div class="wire-card"><h4>Your cohort this week</h4><div class="wire-meter"><span></span></div><div class="wire-milestone"><span>64% progress</span><span>Next: 70%</span></div><p>Progress is normalized to cohort size.</p></div>
+          <div class="wire-card"><h4>Your cohort this week</h4><div class="wire-meter"><span></span></div><div class="wire-milestone"><span>66% progress</span><span>Weekly target: 65%</span></div><p>Progress is normalized to cohort size.</p></div>
           <button class="wire-action" type="button">Open shared cohort progress →</button>
           <div class="state-variant state-comeback">
             <strong>Comeback credit</strong>
             <span>Your first contribution after seven inactive days receives one private extra credit.</span>
           </div>
-          <div class="wire-card compact-card"><h4>Today on your Path</h4><p>Morning light · Twenty minutes outside</p></div>
+          <div class="wire-card activity-card"><h4>Three recommended Path activities</h4>
+            <p><strong>Morning light</strong><span>Step outside soon after waking.</span></p>
+            <p><strong>Twenty minutes outside</strong><span>Choose a comfortable pace.</span></p>
+            <p><strong>Wind-down hour</strong><span>Make the final hour quieter.</span></p>
+          </div>
           <div class="metric-grid dashboard-grid">
             <div class="metric"><span class="metric-label">Personal journey</span><strong class="metric-value">8 practices</strong></div>
             <div class="metric"><span class="metric-label">Reflection</span><strong class="metric-value">Add today’s note</strong></div>
           </div>
-          <div class="wire-card unavailable-card"><h4>Constellation unavailable</h4><p>No learning data is configured for this current destination.</p></div>
-          <div class="wire-card compact-card"><h4>Your contribution</h4><p>1 Path practice · personal details remain private.</p></div>
+          <div class="wire-card unavailable-card"><h4>Constellation unavailable</h4><p>No learning data is configured for this current destination. The proposed learning contribution requires enabling v2 Constellation learning data.</p></div>
+          <div class="wire-card credit-rules"><h4>How private contributions count</h4>
+            <p><strong>Path activity</strong><span>1 credit · capped at 1/day</span></p>
+            <p><strong>Learning node · optional</strong><span>1 credit · capped at 2/week</span></p>
+            <p><strong>Reflection/conversation · optional</strong><span>1 credit · capped at 1/week</span></p>
+            <p><strong>Comeback after 7+ inactive days</strong><span>1 private extra credit · once</span></p>
+          </div>
           <div class="privacy-note">No participant ranking. No names or personal wellbeing answers are shared.</div>
         </div>`;
       }
       if (frame.id === "cohort-progress") {
         return `<div class="screen-wireframe">
           <div class="wire-kicker">Shared progress · This week</div><div class="wire-title">The cohort moves together.</div>
-          <div class="wire-card"><h4>Weekly cohort progress</h4><div class="wire-meter"><span></span></div><div class="wire-milestone"><span>64%</span><span>Target 70%</span></div></div>
+          <div class="wire-card"><h4>Weekly cohort progress</h4><div class="wire-meter"><span></span></div><div class="wire-milestone"><span>66%</span><span>Target 65%</span></div><p class="formula-note">72% × 50% + 58% × 30% + 64% × 20% = 66.2% → 66%</p></div>
           <div class="metric-grid">
             <div class="metric"><span class="metric-label">Breadth · 50%</span><strong class="metric-value">72%</strong></div>
             <div class="metric"><span class="metric-label">Consistency · 30%</span><strong class="metric-value">58%</strong></div>
@@ -73,10 +84,12 @@
             <div class="metric"><span class="metric-label">Active days</span><strong class="metric-value">3+</strong></div>
           </div>
           <div class="state-variant state-milestone">
+            <em>Alternate state</em>
             <strong>Weekly milestone reached</strong>
             <span>The cohort unlocks the next shared content item.</span>
           </div>
           <div class="state-variant state-final-target">
+            <em>Alternate state</em>
             <strong>Final cohort target reached</strong>
             <span>The cohort receives one shared completion marker. No winner is named.</span>
           </div>
@@ -201,7 +214,7 @@
           const middleY = (a.bottom + b.top) / 2;
           d = `M ${startX} ${a.bottom} L ${startX} ${middleY} L ${endX} ${middleY} L ${endX} ${b.top}`;
         }
-        const marker = connector.kind === "proposed" ? "arrow-proposed" : connector.kind === "unavailable" ? "arrow-unavailable" : "arrow-current";
+        const marker = connector.kind === "proposed" ? "arrow-proposed" : connector.kind === "revision" ? "arrow-revision" : connector.kind === "unavailable" ? "arrow-unavailable" : "arrow-current";
         const channelAttribute = Number.isInteger(connector.channel) ? ` data-route-channel="${connector.channel}"` : "";
         return `<path data-connector-kind="${connector.kind}"${channelAttribute} class="connector ${connector.kind}" d="${d}" marker-end="url(#${marker})"></path>`;
       }).join("");

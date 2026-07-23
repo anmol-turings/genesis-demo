@@ -72,6 +72,7 @@ body {
 .legend-item { display: flex; align-items: center; gap: 7px; }
 .legend-swatch { width: 18px; height: 3px; background: #686d74; }
 .legend-swatch.proposed { background: var(--blue); }
+.legend-swatch.revision { background: #7657c8; }
 .legend-swatch.return { height: 0; border-top: 3px dashed #686d74; background: transparent; }
 .legend-swatch.unavailable { height: 0; border-top: 3px dotted #9b7e52; background: transparent; }
 
@@ -191,7 +192,7 @@ body {
   text-align: left;
 }
 .wire-meter { height: 8px; background: #303846; margin: 9px 0 6px; position: relative; overflow: hidden; }
-.wire-meter span { display: block; width: 64%; height: 100%; background: linear-gradient(90deg, #427de2, #70a6ff); }
+.wire-meter span { display: block; width: 66%; height: 100%; background: linear-gradient(90deg, #427de2, #70a6ff); }
 .wire-milestone { display: flex; justify-content: space-between; color: #9ca7b8; font-size: 9px; }
 .metric-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
 .metric { border: 1px solid #343d49; padding: 9px; background: rgba(21, 26, 34, .72); }
@@ -210,6 +211,19 @@ body {
   border-top: 1px solid #303846;
 }
 .milestone-history p strong { color: #fff; }
+.activity-card p,
+.credit-rules p {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 7px;
+  padding-top: 5px;
+  border-top: 1px solid #303846;
+}
+.activity-card p strong,
+.credit-rules p strong { color: #fff; }
+.activity-card p span,
+.credit-rules p span { color: #aeb8c6; }
+.formula-note { font-size: 8px; color: #d6deea !important; }
 .state-variant {
   margin: 12px 16px;
   padding: 12px;
@@ -219,6 +233,16 @@ body {
   font-size: 12px;
 }
 .state-variant strong, .state-variant span { display: block; }
+.state-variant em {
+  display: block;
+  margin-bottom: 5px;
+  color: #8fb8fb;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
 .state-variant span { color: #bcc3ce; margin-top: 5px; line-height: 1.4; }
 .state-comeback { border-left-color: var(--amber); }
 .state-final-target { border-left-color: #7aa7ef; }
@@ -243,6 +267,7 @@ body {
 }
 .connector { fill: none; stroke: #70757d; stroke-width: 2; }
 .connector.proposed { stroke: var(--blue); stroke-width: 2.5; stroke-dasharray: 3 7; stroke-linecap: round; }
+.connector.revision { stroke: #7657c8; stroke-width: 4; stroke-dasharray: 12 5 2 5; }
 .connector.return { stroke-dasharray: 8 6; }
 .connector.unavailable { stroke: #9b7e52; stroke-dasharray: 2 7; stroke-linecap: round; }
 .connector-label {
@@ -263,8 +288,8 @@ body {
 }
 .board-footer p { margin: 0; padding: 12px 15px; border: 1px solid var(--rule); background: rgba(248, 246, 241, .65); }
 
-/* Custom page follows the board ratio; 8 mm gives consistent modest margins. */
-@page { size: 670mm 530mm; margin: 8mm; }
+/* Custom landscape page follows the rendered board ratio with modest margins. */
+@page { size: 680mm 610mm; margin: 8mm; }
 @media print {
   html, body {
     margin: 0;

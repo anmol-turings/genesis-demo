@@ -84,7 +84,7 @@ test("connectors reference valid frames", () => {
   for (const connector of board.connectors) {
     assert.ok(ids.has(connector.from), `unknown connector source ${connector.from}`);
     assert.ok(ids.has(connector.to), `unknown connector target ${connector.to}`);
-    assert.ok(["current", "proposed", "return", "unavailable"].includes(connector.kind));
+    assert.ok(["current", "proposed", "revision", "return", "unavailable"].includes(connector.kind));
   }
 });
 
@@ -125,7 +125,7 @@ test("revised participant dashboard keeps the personal dashboard and adds cohort
     "S. Williams",
     "Active focus",
     "Mentor message",
-    "Today on your Path",
+    "Three recommended Path activities",
     "Personal journey",
     "Reflection",
     "Constellation unavailable",
@@ -179,7 +179,7 @@ test("board styles distinguish proposed and unavailable evidence states", () => 
   assert.match(css, /\.status-unavailable/);
   assert.match(css, /\.connector\.unavailable/);
   assert.match(css, /@media print/);
-  assert.match(css, /size:\s*670mm 530mm/);
+  assert.match(css, /size:\s*680mm 610mm/);
 });
 
 test("screen captures retain their complete 430 by 932 aspect ratio", () => {
@@ -194,7 +194,7 @@ test("wireframes contain content and print uses a board-ratio custom page", () =
   assert.match(css, /\.screen-wireframe\s*\{[^}]*height:\s*auto/s);
   assert.match(css, /\.screen-wireframe\s*\{[^}]*min-height:/s);
   const printStyles = css.slice(css.indexOf("@media print"));
-  assert.match(css, /@page\s*\{[^}]*size:\s*670mm 530mm/s);
+  assert.match(css, /@page\s*\{[^}]*size:\s*680mm 610mm/s);
   assert.match(printStyles, /#flow-board\s*\{[^}]*width:\s*3200px/s);
   assert.match(printStyles, /#flow-board\s*\{[^}]*min-height:\s*2500px/s);
   assert.match(printStyles, /#flow-board\s*\{[^}]*zoom:\s*\.75/s);
@@ -233,4 +233,56 @@ test("proposed cohort states remain aggregate and privacy-safe", () => {
     assert.match(html, new RegExp(required, "i"));
   }
   assert.doesNotMatch(html, /leaderboard|top participant|individual score/i);
+});
+
+test("cohort score arithmetic and alternate-state labels are coherent", () => {
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  const score = Math.round(72 * 0.5 + 58 * 0.3 + 64 * 0.2);
+  assert.equal(score, 66);
+  assert.match(html, /66% progress/i);
+  assert.match(html, /66\.2% → 66%/i);
+  assert.match(html, /Weekly target:\s*65%/i);
+  assert.equal((html.match(/<em>Alternate state<\/em>/g) ?? []).length, 2);
+});
+
+test("participant dashboard shows exactly three activities and explicit contribution rules", () => {
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  for (const activity of ["Morning light", "Twenty minutes outside", "Wind-down hour"]) {
+    assert.match(html, new RegExp(activity, "i"));
+  }
+  assert.match(html, /Three recommended Path activities/i);
+  assert.match(html, /Path activity<\/strong><span>1 credit · capped at 1\/day/i);
+  assert.match(html, /Learning node · optional<\/strong><span>1 credit · capped at 2\/week/i);
+  assert.match(html, /Reflection\/conversation · optional<\/strong><span>1 credit · capped at 1\/week/i);
+  assert.match(html, /Comeback after 7\+ inactive days<\/strong><span>1 private extra credit · once/i);
+  assert.match(html, /requires enabling v2 Constellation learning data/i);
+});
+
+test("current dashboard is revised in place before proposed cohort navigation", () => {
+  const board = loadBoardData();
+  const replacement = board.connectors.find(
+    (connector) => connector.from === "dashboard" && connector.to === "dashboard-cohort",
+  );
+  assert.equal(replacement.kind, "revision");
+  const onward = board.connectors.find(
+    (connector) => connector.from === "dashboard-cohort" && connector.to === "cohort-progress",
+  );
+  assert.equal(onward.kind, "proposed");
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  assert.match(html, /Revised screen \(replaces current dashboard\)/i);
+});
+
+test("all required stakeholder exports exist", () => {
+  for (const name of [
+    "detalytics-screen-flow-board.png",
+    "detalytics-screen-flow-board.pdf",
+    "participant-dashboard-cohort.png",
+    "shared-cohort-progress.png",
+    "program-aggregate-summary.png",
+  ]) {
+    assert.ok(
+      fs.existsSync(`design/flow-board/assets/exports/${name}`),
+      `missing export ${name}`,
+    );
+  }
 });

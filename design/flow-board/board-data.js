@@ -33,7 +33,7 @@ window.FLOW_BOARD = {
     { from: "constellation", to: "dashboard", kind: "unavailable" },
     { from: "dashboard", to: "reflection", kind: "current", channel: 0 },
     { from: "reflection", to: "dashboard", kind: "return" },
-    { from: "dashboard", to: "dashboard-cohort", kind: "proposed" },
+    { from: "dashboard", to: "dashboard-cohort", kind: "revision" },
     { from: "dashboard-cohort", to: "cohort-progress", kind: "proposed" },
   ],
 };

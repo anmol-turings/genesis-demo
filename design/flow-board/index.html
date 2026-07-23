@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detalytics complete demo flow</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="flow-board">
+    <header class="board-header">
+      <div>
+        <p class="eyebrow">Stakeholder review · Screen map</p>
+        <h1 class="board-title">Detalytics complete demo flow</h1>
+        <p class="board-subtitle">Current experience and proposed cohort-game changes</p>
+      </div>
+      <aside class="legend" aria-label="Connector legend">
+        <span class="legend-item"><i class="legend-swatch"></i>Current navigation</span>
+        <span class="legend-item"><i class="legend-swatch proposed"></i>Proposed navigation</span>
+        <span class="legend-item"><i class="legend-swatch return"></i>Return to dashboard</span>
+        <span class="legend-item"><i class="legend-swatch unavailable"></i>Unavailable evidence</span>
+      </aside>
+    </header>
+    <svg class="connectors" aria-hidden="true">
+      <defs>
+        <marker id="arrow-current" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#70757d"/></marker>
+        <marker id="arrow-proposed" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4d8fff"/></marker>
+        <marker id="arrow-unavailable" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#9b7e52"/></marker>
+      </defs>
+      <g id="connector-lines"></g>
+    </svg>
+  </main>
+  <script src="board-data.js"></script>
+  <script>
+    const board = window.FLOW_BOARD;
+    const laneNames = {
+      entry: ["1. Entry and check-in", "Login through suggested starting point"],
+      setup: ["2. Mentor setup", "Mentor, voice, tone, and introduction"],
+      daily: ["3. Daily use", "Dashboard, activities, learning availability, and reflection"],
+      cohort: ["4. Proposed cohort layer", "Revised participant view and aggregate views"],
+    };
+
+    function wireframe(frame) {
+      if (frame.id === "dashboard-cohort") {
+        return `<div class="screen-wireframe">
+          <div class="wire-kicker">The Ride · Week 3</div><div class="wire-title">Welcome back, Anmol.</div>
+          <div class="wire-card"><h4>Your cohort this week</h4><div class="wire-meter"><span></span></div><div class="wire-milestone"><span>64% progress</span><span>Next: 70%</span></div><p>Progress is normalized to cohort size.</p></div>
+          <div class="wire-card"><h4>Your contribution</h4><p>1 Path practice · 1 learning node</p><p>Your personal details remain private.</p></div>
+          <div class="state-strip"><span class="state-chip active">Comeback +1</span><span class="state-chip">Weekly milestone</span><span class="state-chip">Final target</span></div>
+          <div class="wire-card"><h4>Today on your Path</h4><p>Morning light · Physiological sigh · Twenty minutes outside</p></div>
+          <div class="privacy-note">No participant ranking. No names or personal wellbeing answers are shared.</div>
+        </div>`;
+      }
+      if (frame.id === "cohort-progress") {
+        return `<div class="screen-wireframe">
+          <div class="wire-kicker">Shared progress · This week</div><div class="wire-title">The cohort moves together.</div>
+          <div class="wire-card"><h4>Weekly cohort progress</h4><div class="wire-meter"><span></span></div><div class="wire-milestone"><span>64%</span><span>Target 70%</span></div></div>
+          <div class="metric-grid">
+            <div class="metric"><span class="metric-label">Breadth · 50%</span><strong class="metric-value">72%</strong></div>
+            <div class="metric"><span class="metric-label">Consistency · 30%</span><strong class="metric-value">58%</strong></div>
+            <div class="metric"><span class="metric-label">Learning · 20%</span><strong class="metric-value">64%</strong></div>
+            <div class="metric"><span class="metric-label">Active days</span><strong class="metric-value">3+</strong></div>
+          </div>
+          <div class="state-strip"><span class="state-chip">60% reached</span><span class="state-chip active">70% next</span><span class="state-chip">Final target</span></div>
+          <div class="privacy-note">Aggregate progress only. Individual contribution data is not shown.</div>
+        </div>`;
+      }
+      if (frame.id === "program-summary") return `<div class="screen-wireframe">
+        <div class="wire-kicker">Program owner · Aggregate view</div><div class="wire-title">Program summary</div>
+        <div class="metric-grid">
+          <div class="metric"><span class="metric-label">Enrolled</span><strong class="metric-value">240</strong></div>
+          <div class="metric"><span class="metric-label">Weekly participation</span><strong class="metric-value">72%</strong></div>
+          <div class="metric"><span class="metric-label">Return after absence</span><strong class="metric-value">31%</strong></div>
+          <div class="metric"><span class="metric-label">Learning complete</span><strong class="metric-value">64%</strong></div>
+        </div>
+        <div class="wire-card"><h4>Activity completion</h4><p>Daily rhythm 68% · Focus and reset 61% · Connection and work 55%</p></div>
+        <div class="wire-card"><h4>Milestone history</h4><p>Week 1 · 60% reached</p><p>Week 2 · 65% reached</p><p>Week 3 · 70% in progress</p></div>
+        <div class="privacy-note owner-note">No personal answers or individual wellbeing scores. No identifiable small-group breakdowns.</div>
+      </div>`;
+      return "";
+    }
+
+    function frameMarkup(frame) {
+      const visual = frame.asset
+        ? `<img class="screen-image" src="${frame.asset}" alt="${frame.title}">`
+        : wireframe(frame);
+      const statusLabel = frame.status === "unavailable" ? "Unavailable evidence" : frame.status;
+      return `<article class="flow-frame status-${frame.status}" data-frame-id="${frame.id}">
+        <div class="frame-topline"><div class="frame-badge">${statusLabel}</div><h3>${frame.title}</h3></div>
+        ${visual}
+        <dl class="annotation">
+          <div class="annotation-row"><dt>Purpose · </dt><dd>${frame.purpose}</dd></div>
+          <div class="annotation-row"><dt>Entry · </dt><dd>${frame.entry}</dd></div>
+          <div class="annotation-row"><dt>Action · </dt><dd>${frame.action}</dd></div>
+          <div class="annotation-row"><dt>Exit · </dt><dd>${frame.exit}</dd></div>
+        </dl>
+      </article>`;
+    }
+
+    const root = document.getElementById("flow-board");
+    for (const [laneId, [title, description]] of Object.entries(laneNames)) {
+      const frames = board.frames.filter((frame) => frame.lane === laneId);
+      root.insertAdjacentHTML("beforeend", `<section class="lane" data-lane="${laneId}">
+        <header class="lane-heading"><h2>${title}</h2><p>${description}</p></header>
+        <div class="lane-frames">${frames.map(frameMarkup).join("")}</div>
+      </section>`);
+    }
+    root.insertAdjacentHTML("beforeend", `<footer class="board-footer">
+      <p><strong>Participant privacy:</strong> No participant ranking, names of other participants, personal wellbeing answers, or raw health scores.</p>
+      <p><strong>Program privacy:</strong> No personal answers or individual wellbeing scores, individual histories, or identifiable small-group breakdowns.</p>
+    </footer>`);
+
+    function drawConnectors() {
+      const overlay = document.getElementById("connector-lines");
+      const boardRect = root.getBoundingClientRect();
+      overlay.innerHTML = board.connectors.map((connector) => {
+        const from = document.querySelector(`[data-frame-id="${connector.from}"]`);
+        const to = document.querySelector(`[data-frame-id="${connector.to}"]`);
+        if (!from || !to) return "";
+        const a = from.getBoundingClientRect();
+        const b = to.getBoundingClientRect();
+        const startX = a.right - boardRect.left;
+        const startY = a.top + a.height * .42 - boardRect.top;
+        const endX = b.left - boardRect.left;
+        const endY = b.top + b.height * .42 - boardRect.top;
+        const isReturn = connector.kind === "return";
+        const sameLane = Math.abs(a.top - b.top) < 30;
+        let d;
+        if (isReturn) {
+          const loopY = Math.max(a.bottom, b.bottom) - boardRect.top + 24;
+          d = `M ${startX} ${startY} C ${startX + 42} ${loopY}, ${endX - 42} ${loopY}, ${endX} ${endY}`;
+        } else if (sameLane) {
+          d = `M ${startX} ${startY} C ${startX + 15} ${startY}, ${endX - 15} ${endY}, ${endX} ${endY}`;
+        } else {
+          const midY = (startY + endY) / 2;
+          d = `M ${startX} ${startY} C ${startX + 70} ${midY}, ${endX - 70} ${midY}, ${endX} ${endY}`;
+        }
+        const marker = connector.kind === "proposed" ? "arrow-proposed" : connector.kind === "unavailable" ? "arrow-unavailable" : "arrow-current";
+        return `<path class="connector ${connector.kind}" d="${d}" marker-end="url(#${marker})"></path>`;
+      }).join("");
+    }
+    window.addEventListener("load", drawConnectors);
+    window.addEventListener("resize", drawConnectors);
+  </script>
+</body>
+</html>

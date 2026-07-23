@@ -87,3 +87,24 @@ test("connectors reference valid frames", () => {
     assert.ok(["current", "proposed", "return", "unavailable"].includes(connector.kind));
   }
 });
+
+test("board renders the required structure and privacy statements", () => {
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  assert.match(html, /id="flow-board"/);
+  assert.match(html, /data-frame-id=/);
+  assert.match(html, /dashboard-cohort/);
+  assert.match(html, /cohort-progress/);
+  assert.match(html, /program-summary/);
+  assert.match(html, /No participant ranking/i);
+  assert.match(html, /No personal answers or individual wellbeing scores/i);
+});
+
+test("board styles distinguish proposed and unavailable evidence states", () => {
+  const css = fs.readFileSync("design/flow-board/styles.css", "utf8");
+  assert.match(css, /\.flow-frame/);
+  assert.match(css, /\.status-new/);
+  assert.match(css, /\.status-unavailable/);
+  assert.match(css, /\.connector\.unavailable/);
+  assert.match(css, /@media print/);
+  assert.match(css, /size:\s*A1 landscape/);
+});

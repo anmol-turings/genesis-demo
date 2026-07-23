@@ -143,3 +143,38 @@ test("wireframes contain their content and A1 print scales the full board to one
   assert.match(printStyles, /#flow-board\s*\{[^}]*zoom:\s*\.6/s);
   assert.match(printStyles, /overflow:\s*hidden/i);
 });
+
+test("board includes connector and proposed-state hooks", () => {
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  for (const token of [
+    "connector-layer",
+    "state-comeback",
+    "state-milestone",
+    "state-final-target",
+    "data-connector-kind",
+  ]) {
+    assert.match(html, new RegExp(token));
+  }
+});
+
+test("program summary remains outside participant navigation", () => {
+  const board = loadBoardData();
+  assert.ok(
+    board.connectors.every(
+      (connector) => connector.from !== "program-summary" && connector.to !== "program-summary",
+    ),
+  );
+});
+
+test("proposed cohort states remain aggregate and privacy-safe", () => {
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  for (const required of [
+    "first contribution after seven inactive days",
+    "cohort unlocks the next shared content item",
+    "one shared completion marker",
+    "No winner is named",
+  ]) {
+    assert.match(html, new RegExp(required, "i"));
+  }
+  assert.doesNotMatch(html, /leaderboard|top participant|individual score/i);
+});

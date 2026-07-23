@@ -185,9 +185,18 @@ body {
 .topic-card { margin-top: 9px; }
 .topic-row { display: flex; justify-content: space-between; padding: 5px 0; border-top: 1px solid #303846; color: #b7c0cd; }
 .topic-row strong { color: #fff; }
-.state-strip { display: flex; gap: 5px; margin: 8px 0; }
-.state-chip { border: 1px solid #485366; color: #b8c2d0; padding: 5px 6px; font-size: 8px; }
-.state-chip.active { border-color: #cf953b; color: #e9bd76; }
+.state-variant {
+  margin: 12px 16px;
+  padding: 12px;
+  border-left: 3px solid var(--blue);
+  background: #202630;
+  color: #f5f1e8;
+  font-size: 12px;
+}
+.state-variant strong, .state-variant span { display: block; }
+.state-variant span { color: #bcc3ce; margin-top: 5px; line-height: 1.4; }
+.state-comeback { border-left-color: var(--amber); }
+.state-final-target { border-left-color: #7aa7ef; }
 .privacy-note {
   border-left: 2px solid #6798e9;
   background: #171d25;
@@ -198,7 +207,7 @@ body {
 }
 .owner-note { border-left-color: var(--amber); }
 
-.connectors {
+#connector-layer {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -208,7 +217,7 @@ body {
   overflow: visible;
 }
 .connector { fill: none; stroke: #70757d; stroke-width: 2; }
-.connector.proposed { stroke: var(--blue); stroke-width: 2.5; }
+.connector.proposed { stroke: var(--blue); stroke-width: 2.5; stroke-dasharray: 3 7; stroke-linecap: round; }
 .connector.return { stroke-dasharray: 8 6; }
 .connector.unavailable { stroke: #9b7e52; stroke-dasharray: 2 7; stroke-linecap: round; }
 .connector-label {

@@ -8,6 +8,14 @@
 </head>
 <body>
   <main id="flow-board">
+    <svg id="connector-layer" aria-label="Screen connections">
+      <defs>
+        <marker id="arrow-current" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#70757d"/></marker>
+        <marker id="arrow-proposed" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4d8fff"/></marker>
+        <marker id="arrow-unavailable" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#9b7e52"/></marker>
+      </defs>
+      <g id="connector-lines"></g>
+    </svg>
     <header class="board-header">
       <div>
         <p class="eyebrow">Stakeholder review · Screen map</p>
@@ -21,14 +29,6 @@
         <span class="legend-item"><i class="legend-swatch unavailable"></i>Unavailable evidence</span>
       </aside>
     </header>
-    <svg class="connectors" aria-hidden="true">
-      <defs>
-        <marker id="arrow-current" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#70757d"/></marker>
-        <marker id="arrow-proposed" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#4d8fff"/></marker>
-        <marker id="arrow-unavailable" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#9b7e52"/></marker>
-      </defs>
-      <g id="connector-lines"></g>
-    </svg>
   </main>
   <script src="board-data.js"></script>
   <script>
@@ -47,7 +47,10 @@
           <div class="wire-card compact-card"><h4>Active focus · Restoring your baseline</h4><p>Small, repeatable actions for steadier energy.</p></div>
           <div class="wire-card mentor-card"><h4>Mentor message</h4><p>“Notice what today is offering you. One deliberate step is enough.”</p></div>
           <div class="wire-card"><h4>Your cohort this week</h4><div class="wire-meter"><span></span></div><div class="wire-milestone"><span>64% progress</span><span>Next: 70%</span></div><p>Progress is normalized to cohort size.</p></div>
-          <div class="state-strip"><span class="state-chip active">Comeback +1</span><span class="state-chip">Weekly milestone</span><span class="state-chip">Final target</span></div>
+          <div class="state-variant state-comeback">
+            <strong>Comeback credit</strong>
+            <span>Your first contribution after seven inactive days receives one private extra credit.</span>
+          </div>
           <div class="wire-card compact-card"><h4>Today on your Path</h4><p>Morning light · Twenty minutes outside</p></div>
           <div class="metric-grid dashboard-grid">
             <div class="metric"><span class="metric-label">Personal journey</span><strong class="metric-value">8 practices</strong></div>
@@ -68,7 +71,14 @@
             <div class="metric"><span class="metric-label">Learning · 20%</span><strong class="metric-value">64%</strong></div>
             <div class="metric"><span class="metric-label">Active days</span><strong class="metric-value">3+</strong></div>
           </div>
-          <div class="state-strip"><span class="state-chip">60% reached</span><span class="state-chip active">70% next</span><span class="state-chip">Final target</span></div>
+          <div class="state-variant state-milestone">
+            <strong>Weekly milestone reached</strong>
+            <span>The cohort unlocks the next shared content item.</span>
+          </div>
+          <div class="state-variant state-final-target">
+            <strong>Final cohort target reached</strong>
+            <span>The cohort receives one shared completion marker. No winner is named.</span>
+          </div>
           <div class="privacy-note">Aggregate progress only. Individual contribution data is not shown.</div>
         </div>`;
       }
@@ -123,34 +133,67 @@
     </footer>`);
 
     function drawConnectors() {
+      const svg = document.getElementById("connector-layer");
       const overlay = document.getElementById("connector-lines");
-      const boardRect = root.getBoundingClientRect();
+      svg.setAttribute("viewBox", `0 0 ${root.scrollWidth} ${root.scrollHeight}`);
+
+      function boardBox(element) {
+        let left = 0;
+        let top = 0;
+        let node = element;
+        while (node && node !== root) {
+          left += node.offsetLeft;
+          top += node.offsetTop;
+          node = node.offsetParent;
+        }
+        return {
+          left,
+          top,
+          right: left + element.offsetWidth,
+          bottom: top + element.offsetHeight,
+          width: element.offsetWidth,
+          height: element.offsetHeight,
+        };
+      }
+
       overlay.innerHTML = board.connectors.map((connector) => {
         const from = document.querySelector(`[data-frame-id="${connector.from}"]`);
         const to = document.querySelector(`[data-frame-id="${connector.to}"]`);
         if (!from || !to) return "";
-        const a = from.getBoundingClientRect();
-        const b = to.getBoundingClientRect();
-        const startX = a.right - boardRect.left;
-        const startY = a.top + a.height * .42 - boardRect.top;
-        const endX = b.left - boardRect.left;
-        const endY = b.top + b.height * .42 - boardRect.top;
-        const isReturn = connector.kind === "return";
+        const a = boardBox(from);
+        const b = boardBox(to);
         const sameLane = Math.abs(a.top - b.top) < 30;
+        const reverse = sameLane && a.left > b.left;
+        const skipsFrame = sameLane && b.left - a.right > a.width + 45;
         let d;
-        if (isReturn) {
-          const loopY = Math.max(a.bottom, b.bottom) - boardRect.top + 24;
-          d = `M ${startX} ${startY} C ${startX + 42} ${loopY}, ${endX - 42} ${loopY}, ${endX} ${endY}`;
+        if (reverse) {
+          const startX = a.left + a.width / 2;
+          const endX = b.left + b.width / 2;
+          const routeY = Math.max(a.bottom, b.bottom) + 22;
+          d = `M ${startX} ${a.bottom} L ${startX} ${routeY} L ${endX} ${routeY} L ${endX} ${b.bottom}`;
+        } else if (sameLane && skipsFrame) {
+          const startX = a.left + a.width / 2;
+          const endX = b.left + b.width / 2;
+          const routeY = Math.min(a.top, b.top) - 20;
+          d = `M ${startX} ${a.top} L ${startX} ${routeY} L ${endX} ${routeY} L ${endX} ${b.top}`;
         } else if (sameLane) {
-          d = `M ${startX} ${startY} C ${startX + 15} ${startY}, ${endX - 15} ${endY}, ${endX} ${endY}`;
+          const startX = a.right;
+          const startY = a.top + a.height * .42;
+          const endX = b.left;
+          const endY = b.top + b.height * .42;
+          const middleX = (startX + endX) / 2;
+          d = `M ${startX} ${startY} L ${middleX} ${startY} L ${middleX} ${endY} L ${endX} ${endY}`;
         } else {
-          const midY = (startY + endY) / 2;
-          d = `M ${startX} ${startY} C ${startX + 70} ${midY}, ${endX - 70} ${midY}, ${endX} ${endY}`;
+          const startX = a.left + a.width / 2;
+          const endX = b.left + b.width / 2;
+          const middleY = (a.bottom + b.top) / 2;
+          d = `M ${startX} ${a.bottom} L ${startX} ${middleY} L ${endX} ${middleY} L ${endX} ${b.top}`;
         }
         const marker = connector.kind === "proposed" ? "arrow-proposed" : connector.kind === "unavailable" ? "arrow-unavailable" : "arrow-current";
-        return `<path class="connector ${connector.kind}" d="${d}" marker-end="url(#${marker})"></path>`;
+        return `<path data-connector-kind="${connector.kind}" class="connector ${connector.kind}" d="${d}" marker-end="url(#${marker})"></path>`;
       }).join("");
     }
+    requestAnimationFrame(drawConnectors);
     window.addEventListener("load", drawConnectors);
     window.addEventListener("resize", drawConnectors);
   </script>

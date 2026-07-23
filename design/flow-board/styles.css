@@ -130,13 +130,13 @@ body {
 .flow-frame h3 { font-size: 16px; line-height: 1.2; margin: 0; letter-spacing: -.01em; }
 .screen-image, .screen-wireframe {
   width: 100%;
-  height: 426px;
   object-fit: cover;
   object-position: top;
   display: block;
   background: var(--dark);
   border: 1px solid #303640;
 }
+.screen-image { height: 426px; }
 
 .annotation {
   border-top: 1px solid var(--rule);
@@ -150,8 +150,10 @@ body {
 .annotation dd { display: inline; margin: 0; color: var(--muted); }
 
 .screen-wireframe {
+  height: auto;
+  min-height: 610px;
   color: var(--cream);
-  padding: 18px 14px;
+  padding: 16px 13px;
   background:
     radial-gradient(circle at 80% 8%, rgba(77, 143, 255, .14), transparent 28%),
     radial-gradient(circle at 10% 70%, rgba(201, 139, 41, .1), transparent 26%),
@@ -166,6 +168,9 @@ body {
   border: 1px solid #353e4b;
   background: rgba(25, 31, 40, .86);
 }
+.compact-card { padding: 9px 11px; margin-bottom: 7px; }
+.mentor-card { border-left: 2px solid #cf953b; padding: 10px 11px; margin-bottom: 7px; }
+.unavailable-card { border-style: dotted; border-color: #8d744f; background: rgba(77, 66, 49, .34); }
 .wire-card h4 { margin: 0 0 6px; font-size: 12px; }
 .wire-card p { margin: 4px 0; color: #b7c0cd; line-height: 1.35; }
 .wire-meter { height: 8px; background: #303846; margin: 9px 0 6px; position: relative; overflow: hidden; }
@@ -175,6 +180,11 @@ body {
 .metric { border: 1px solid #343d49; padding: 9px; background: rgba(21, 26, 34, .72); }
 .metric-value { display: block; color: #fff; font-size: 17px; margin-top: 4px; }
 .metric-label { color: #939dab; font-size: 7px; }
+.dashboard-grid { margin-bottom: 7px; }
+.dashboard-grid .metric-value { font-size: 11px; line-height: 1.25; }
+.topic-card { margin-top: 9px; }
+.topic-row { display: flex; justify-content: space-between; padding: 5px 0; border-top: 1px solid #303846; color: #b7c0cd; }
+.topic-row strong { color: #fff; }
 .state-strip { display: flex; gap: 5px; margin: 8px 0; }
 .state-chip { border: 1px solid #485366; color: #b8c2d0; padding: 5px 6px; font-size: 8px; }
 .state-chip.active { border-color: #cf953b; color: #e9bd76; }
@@ -218,9 +228,21 @@ body {
 }
 .board-footer p { margin: 0; padding: 12px 15px; border: 1px solid var(--rule); background: rgba(248, 246, 241, .65); }
 
-@page { size: A1 landscape; margin: 8mm; }
+/* Explicit A1 dimensions are honored by Chromium's CSS-page-size export path. */
+@page { size: 841mm 594mm; margin: 0; }
 @media print {
-  html, body { background: #fff; }
-  #flow-board { background: #fff; }
+  html, body {
+    width: 841mm;
+    height: 594mm;
+    margin: 0;
+    overflow: hidden;
+    background: #fff;
+  }
+  #flow-board {
+    position: absolute;
+    inset: 0 auto auto 0;
+    background: #fff;
+    zoom: .6;
+  }
   .flow-frame { break-inside: avoid; }
 }

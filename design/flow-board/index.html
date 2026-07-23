@@ -43,11 +43,18 @@
     function wireframe(frame) {
       if (frame.id === "dashboard-cohort") {
         return `<div class="screen-wireframe">
-          <div class="wire-kicker">The Ride · Week 3</div><div class="wire-title">Welcome back, Anmol.</div>
+          <div class="wire-kicker">The Ride · Week 3</div><div class="wire-title">Welcome back, S. Williams.</div>
+          <div class="wire-card compact-card"><h4>Active focus · Restoring your baseline</h4><p>Small, repeatable actions for steadier energy.</p></div>
+          <div class="wire-card mentor-card"><h4>Mentor message</h4><p>“Notice what today is offering you. One deliberate step is enough.”</p></div>
           <div class="wire-card"><h4>Your cohort this week</h4><div class="wire-meter"><span></span></div><div class="wire-milestone"><span>64% progress</span><span>Next: 70%</span></div><p>Progress is normalized to cohort size.</p></div>
-          <div class="wire-card"><h4>Your contribution</h4><p>1 Path practice · 1 learning node</p><p>Your personal details remain private.</p></div>
           <div class="state-strip"><span class="state-chip active">Comeback +1</span><span class="state-chip">Weekly milestone</span><span class="state-chip">Final target</span></div>
-          <div class="wire-card"><h4>Today on your Path</h4><p>Morning light · Physiological sigh · Twenty minutes outside</p></div>
+          <div class="wire-card compact-card"><h4>Today on your Path</h4><p>Morning light · Twenty minutes outside</p></div>
+          <div class="metric-grid dashboard-grid">
+            <div class="metric"><span class="metric-label">Personal journey</span><strong class="metric-value">8 practices</strong></div>
+            <div class="metric"><span class="metric-label">Reflection</span><strong class="metric-value">Add today’s note</strong></div>
+          </div>
+          <div class="wire-card unavailable-card"><h4>Constellation unavailable</h4><p>No learning data is configured for this current destination.</p></div>
+          <div class="wire-card compact-card"><h4>Your contribution</h4><p>1 Path practice · personal details remain private.</p></div>
           <div class="privacy-note">No participant ranking. No names or personal wellbeing answers are shared.</div>
         </div>`;
       }
@@ -71,9 +78,14 @@
           <div class="metric"><span class="metric-label">Enrolled</span><strong class="metric-value">240</strong></div>
           <div class="metric"><span class="metric-label">Weekly participation</span><strong class="metric-value">72%</strong></div>
           <div class="metric"><span class="metric-label">Return after absence</span><strong class="metric-value">31%</strong></div>
-          <div class="metric"><span class="metric-label">Learning complete</span><strong class="metric-value">64%</strong></div>
+          <div class="metric"><span class="metric-label">Active days</span><strong class="metric-value">3.4</strong></div>
         </div>
-        <div class="wire-card"><h4>Activity completion</h4><p>Daily rhythm 68% · Focus and reset 61% · Connection and work 55%</p></div>
+        <div class="wire-card topic-card"><h4>Learning completion by topic</h4>
+          <div class="topic-row"><span>Daily rhythm</span><strong>68%</strong></div>
+          <div class="topic-row"><span>Focus and reset</span><strong>61%</strong></div>
+          <div class="topic-row"><span>Connection and work</span><strong>55%</strong></div>
+        </div>
+        <div class="wire-card"><h4>Activity completion</h4><p>Practices explored 67% · Reflections added 49%</p></div>
         <div class="wire-card"><h4>Milestone history</h4><p>Week 1 · 60% reached</p><p>Week 2 · 65% reached</p><p>Week 3 · 70% in progress</p></div>
         <div class="privacy-note owner-note">No personal answers or individual wellbeing scores. No identifiable small-group breakdowns.</div>
       </div>`;

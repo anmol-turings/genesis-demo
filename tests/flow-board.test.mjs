@@ -99,6 +99,32 @@ test("board renders the required structure and privacy statements", () => {
   assert.match(html, /No personal answers or individual wellbeing scores/i);
 });
 
+test("revised participant dashboard keeps the personal dashboard and adds cohort progress", () => {
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  for (const label of [
+    "S. Williams",
+    "Active focus",
+    "Mentor message",
+    "Today on your Path",
+    "Personal journey",
+    "Reflection",
+    "Constellation unavailable",
+    "Your cohort this week",
+  ]) {
+    assert.match(html, new RegExp(label, "i"), `missing revised dashboard element: ${label}`);
+  }
+  assert.doesNotMatch(html, /Welcome back, Anmol/i);
+});
+
+test("program summary reports learning completion by topic", () => {
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  assert.match(html, /Learning completion by topic/i);
+  for (const topic of ["Daily rhythm", "Focus and reset", "Connection and work"]) {
+    assert.match(html, new RegExp(topic, "i"), `missing learning topic: ${topic}`);
+  }
+  assert.doesNotMatch(html, /<span class="metric-label">Learning complete<\/span>/i);
+});
+
 test("board styles distinguish proposed and unavailable evidence states", () => {
   const css = fs.readFileSync("design/flow-board/styles.css", "utf8");
   assert.match(css, /\.flow-frame/);
@@ -106,5 +132,14 @@ test("board styles distinguish proposed and unavailable evidence states", () => 
   assert.match(css, /\.status-unavailable/);
   assert.match(css, /\.connector\.unavailable/);
   assert.match(css, /@media print/);
-  assert.match(css, /size:\s*A1 landscape/);
+  assert.match(css, /size:\s*841mm 594mm/);
+});
+
+test("wireframes contain their content and A1 print scales the full board to one page", () => {
+  const css = fs.readFileSync("design/flow-board/styles.css", "utf8");
+  assert.match(css, /\.screen-wireframe\s*\{[^}]*height:\s*auto/s);
+  assert.match(css, /\.screen-wireframe\s*\{[^}]*min-height:/s);
+  const printStyles = css.slice(css.indexOf("@media print"));
+  assert.match(printStyles, /#flow-board\s*\{[^}]*zoom:\s*\.6/s);
+  assert.match(printStyles, /overflow:\s*hidden/i);
 });

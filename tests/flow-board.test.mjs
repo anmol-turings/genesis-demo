@@ -88,6 +88,26 @@ test("connectors reference valid frames", () => {
   }
 });
 
+test("dashboard routes that skip frames use distinct deterministic channels", () => {
+  const board = loadBoardData();
+  const routes = board.connectors.filter(
+    (connector) =>
+      connector.from === "dashboard" &&
+      ["constellation", "reflection"].includes(connector.to),
+  );
+
+  assert.equal(routes.length, 2);
+  assert.ok(
+    routes.every((connector) => Number.isInteger(connector.channel)),
+    "each long dashboard route must declare an integer channel",
+  );
+  assert.equal(
+    new Set(routes.map((connector) => connector.channel)).size,
+    routes.length,
+    "long dashboard routes must not share a routing channel",
+  );
+});
+
 test("board renders the required structure and privacy statements", () => {
   const html = fs.readFileSync("design/flow-board/index.html", "utf8");
   assert.match(html, /id="flow-board"/);

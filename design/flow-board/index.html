@@ -174,7 +174,8 @@
         } else if (sameLane && skipsFrame) {
           const startX = a.left + a.width / 2;
           const endX = b.left + b.width / 2;
-          const routeY = Math.min(a.top, b.top) - 20;
+          const channel = Number.isInteger(connector.channel) ? connector.channel : 0;
+          const routeY = Math.min(a.top, b.top) - 20 - channel * 16;
           d = `M ${startX} ${a.top} L ${startX} ${routeY} L ${endX} ${routeY} L ${endX} ${b.top}`;
         } else if (sameLane) {
           const startX = a.right;
@@ -190,7 +191,8 @@
           d = `M ${startX} ${a.bottom} L ${startX} ${middleY} L ${endX} ${middleY} L ${endX} ${b.top}`;
         }
         const marker = connector.kind === "proposed" ? "arrow-proposed" : connector.kind === "unavailable" ? "arrow-unavailable" : "arrow-current";
-        return `<path data-connector-kind="${connector.kind}" class="connector ${connector.kind}" d="${d}" marker-end="url(#${marker})"></path>`;
+        const channelAttribute = Number.isInteger(connector.channel) ? ` data-route-channel="${connector.channel}"` : "";
+        return `<path data-connector-kind="${connector.kind}"${channelAttribute} class="connector ${connector.kind}" d="${d}" marker-end="url(#${marker})"></path>`;
       }).join("");
     }
     requestAnimationFrame(drawConnectors);

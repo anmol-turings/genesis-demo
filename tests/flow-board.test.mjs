@@ -241,7 +241,9 @@ test("cohort score arithmetic and alternate-state labels are coherent", () => {
   assert.equal(score, 66);
   assert.match(html, /66% progress/i);
   assert.match(html, /66\.2% → 66%/i);
-  assert.match(html, /Weekly target:\s*65%/i);
+  assert.match(html, /Weekly target:\s*70%/i);
+  assert.match(html, /Target 70%/i);
+  assert.doesNotMatch(html, /Week 3[^<]*65%|Weekly target:\s*65%|Target 65%/i);
   assert.equal((html.match(/<em>Alternate state<\/em>/g) ?? []).length, 2);
 });
 
@@ -284,5 +286,23 @@ test("all required stakeholder exports exist", () => {
       fs.existsSync(`design/flow-board/assets/exports/${name}`),
       `missing export ${name}`,
     );
+  }
+});
+
+test("proposed-screen exports are genuine high-resolution PNG files", () => {
+  for (const name of [
+    "participant-dashboard-cohort.png",
+    "shared-cohort-progress.png",
+    "program-aggregate-summary.png",
+  ]) {
+    const bytes = fs.readFileSync(`design/flow-board/assets/exports/${name}`);
+    assert.deepEqual(
+      [...bytes.subarray(0, 8)],
+      [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+      `${name} must contain PNG data`,
+    );
+    assert.equal(bytes.readUInt32BE(12), 0x49484452, `${name} must start with IHDR`);
+    assert.ok(bytes.readUInt32BE(16) >= 860, `${name} must be at least 860px wide`);
+    assert.ok(bytes.readUInt32BE(20) > 0, `${name} must have a positive height`);
   }
 });

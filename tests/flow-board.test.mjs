@@ -39,7 +39,16 @@ test("all current frames reference captured assets", () => {
   const board = loadBoardData();
   for (const frame of board.frames.filter((item) => item.status === "current")) {
     assert.match(frame.asset, /^assets\/current\/.+\.png$/);
+    const assetPath = `design/flow-board/${frame.asset}`;
+    assert.ok(fs.existsSync(assetPath), `missing current asset ${assetPath}`);
   }
+});
+
+test("constellation frame is explicitly marked as unavailable evidence", () => {
+  const board = loadBoardData();
+  const frame = board.frames.find((item) => item.id === "constellation");
+  assert.equal(frame.availability, "not-available");
+  assert.match(frame.purpose, /no current destination supplies learning data/i);
 });
 
 test("connectors reference valid frames", () => {

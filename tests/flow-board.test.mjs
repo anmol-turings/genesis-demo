@@ -160,7 +160,7 @@ test("wireframes contain their content and A1 print scales the full board to one
   assert.match(css, /\.screen-wireframe\s*\{[^}]*height:\s*auto/s);
   assert.match(css, /\.screen-wireframe\s*\{[^}]*min-height:/s);
   const printStyles = css.slice(css.indexOf("@media print"));
-  assert.match(printStyles, /#flow-board\s*\{[^}]*zoom:\s*\.6/s);
+  assert.match(printStyles, /#flow-board\s*\{[^}]*zoom:\s*\.84/s);
   assert.match(printStyles, /overflow:\s*hidden/i);
 });
 

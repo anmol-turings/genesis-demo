@@ -23,7 +23,7 @@ body {
 }
 
 #flow-board {
-  width: 3600px;
+  width: 3200px;
   min-height: 2500px;
   padding: 58px 64px 68px;
   position: relative;
@@ -32,6 +32,7 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 64px;
   align-items: start;
+  align-content: start;
   background:
     linear-gradient(rgba(23, 26, 31, .035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(23, 26, 31, .035) 1px, transparent 1px),
@@ -134,13 +135,14 @@ body {
 .flow-frame h3 { font-size: 16px; line-height: 1.2; margin: 0; letter-spacing: -.01em; }
 .screen-image, .screen-wireframe {
   width: 100%;
-  object-fit: cover;
-  object-position: top;
   display: block;
   background: var(--dark);
   border: 1px solid #303640;
 }
-.screen-image { height: 426px; }
+.screen-image {
+  height: auto;
+  aspect-ratio: 430 / 932;
+}
 
 .annotation {
   border-top: 1px solid var(--rule);
@@ -177,6 +179,17 @@ body {
 .unavailable-card { border-style: dotted; border-color: #8d744f; background: rgba(77, 66, 49, .34); }
 .wire-card h4 { margin: 0 0 6px; font-size: 12px; }
 .wire-card p { margin: 4px 0; color: #b7c0cd; line-height: 1.35; }
+.wire-action {
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid #6fa2f4;
+  background: #376fc8;
+  color: #fff;
+  font: 750 10px/1.2 inherit;
+  letter-spacing: .03em;
+  text-align: left;
+}
 .wire-meter { height: 8px; background: #303846; margin: 9px 0 6px; position: relative; overflow: hidden; }
 .wire-meter span { display: block; width: 64%; height: 100%; background: linear-gradient(90deg, #427de2, #70a6ff); }
 .wire-milestone { display: flex; justify-content: space-between; color: #9ca7b8; font-size: 9px; }
@@ -189,6 +202,14 @@ body {
 .topic-card { margin-top: 9px; }
 .topic-row { display: flex; justify-content: space-between; padding: 5px 0; border-top: 1px solid #303846; color: #b7c0cd; }
 .topic-row strong { color: #fff; }
+.milestone-history p {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 7px;
+  padding-top: 5px;
+  border-top: 1px solid #303846;
+}
+.milestone-history p strong { color: #fff; }
 .state-variant {
   margin: 12px 16px;
   padding: 12px;
@@ -242,21 +263,17 @@ body {
 }
 .board-footer p { margin: 0; padding: 12px 15px; border: 1px solid var(--rule); background: rgba(248, 246, 241, .65); }
 
-/* Explicit A1 dimensions are honored by Chromium's CSS-page-size export path. */
-@page { size: 841mm 594mm; margin: 0; }
+/* Custom page follows the board ratio; 8 mm gives consistent modest margins. */
+@page { size: 670mm 530mm; margin: 8mm; }
 @media print {
   html, body {
-    width: 841mm;
-    height: 594mm;
     margin: 0;
-    overflow: hidden;
     background: #fff;
   }
   #flow-board {
-    position: absolute;
-    inset: 0 auto auto 0;
+    width: 3200px;
+    min-height: 2500px;
     background: #fff;
-    zoom: .84;
+    zoom: .75;
   }
-  .flow-frame { break-inside: avoid; }
 }

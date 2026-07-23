@@ -130,6 +130,7 @@ test("revised participant dashboard keeps the personal dashboard and adds cohort
     "Reflection",
     "Constellation unavailable",
     "Your cohort this week",
+    "Open shared cohort progress",
   ]) {
     assert.match(html, new RegExp(label, "i"), `missing revised dashboard element: ${label}`);
   }
@@ -139,10 +140,36 @@ test("revised participant dashboard keeps the personal dashboard and adds cohort
 test("program summary reports learning completion by topic", () => {
   const html = fs.readFileSync("design/flow-board/index.html", "utf8");
   assert.match(html, /Learning completion by topic/i);
-  for (const topic of ["Daily rhythm", "Focus and reset", "Connection and work"]) {
+  for (const topic of [
+    "Daily rhythm",
+    "Focus and reset",
+    "Connection and work",
+    "Learning/reflection",
+  ]) {
     assert.match(html, new RegExp(topic, "i"), `missing learning topic: ${topic}`);
   }
   assert.doesNotMatch(html, /<span class="metric-label">Learning complete<\/span>/i);
+});
+
+test("program summary reports activity completion by category", () => {
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  assert.match(html, /Activity completion by category/i);
+  for (const category of [
+    "Daily rhythm",
+    "Focus and reset",
+    "Connection and work",
+    "Learning/reflection",
+  ]) {
+    const occurrences = html.match(new RegExp(category, "gi")) ?? [];
+    assert.ok(occurrences.length >= 2, `missing activity category: ${category}`);
+  }
+});
+
+test("shared cohort progress shows completed milestone history", () => {
+  const html = fs.readFileSync("design/flow-board/index.html", "utf8");
+  assert.match(html, /Completed milestones/i);
+  assert.match(html, /Week 1/i);
+  assert.match(html, /Week 2/i);
 });
 
 test("board styles distinguish proposed and unavailable evidence states", () => {
@@ -152,16 +179,25 @@ test("board styles distinguish proposed and unavailable evidence states", () => 
   assert.match(css, /\.status-unavailable/);
   assert.match(css, /\.connector\.unavailable/);
   assert.match(css, /@media print/);
-  assert.match(css, /size:\s*841mm 594mm/);
+  assert.match(css, /size:\s*670mm 530mm/);
 });
 
-test("wireframes contain their content and A1 print scales the full board to one page", () => {
+test("screen captures retain their complete 430 by 932 aspect ratio", () => {
+  const css = fs.readFileSync("design/flow-board/styles.css", "utf8");
+  assert.match(css, /\.screen-image\s*\{[^}]*height:\s*auto/s);
+  assert.doesNotMatch(css, /\.screen-image\s*\{[^}]*object-fit:\s*cover/s);
+  assert.doesNotMatch(css, /\.screen-image\s*\{[^}]*height:\s*426px/s);
+});
+
+test("wireframes contain content and print uses a board-ratio custom page", () => {
   const css = fs.readFileSync("design/flow-board/styles.css", "utf8");
   assert.match(css, /\.screen-wireframe\s*\{[^}]*height:\s*auto/s);
   assert.match(css, /\.screen-wireframe\s*\{[^}]*min-height:/s);
   const printStyles = css.slice(css.indexOf("@media print"));
-  assert.match(printStyles, /#flow-board\s*\{[^}]*zoom:\s*\.84/s);
-  assert.match(printStyles, /overflow:\s*hidden/i);
+  assert.match(css, /@page\s*\{[^}]*size:\s*670mm 530mm/s);
+  assert.match(printStyles, /#flow-board\s*\{[^}]*width:\s*3200px/s);
+  assert.match(printStyles, /#flow-board\s*\{[^}]*min-height:\s*2500px/s);
+  assert.match(printStyles, /#flow-board\s*\{[^}]*zoom:\s*\.75/s);
 });
 
 test("board includes connector and proposed-state hooks", () => {

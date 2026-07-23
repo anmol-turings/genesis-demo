@@ -7,6 +7,11 @@ Open `index.html` to inspect the editable stakeholder-review board.
 - `assets/exports/detalytics-screen-flow-board.png`
 - `assets/exports/detalytics-screen-flow-board.pdf`
 
+The PNG is exported at the board's native 3200 × 2500 dimensions. The PDF uses one
+custom 670 × 530 mm landscape page matched to the board aspect ratio, with consistent
+8 mm margins. All current-screen captures retain their full 430 × 932
+mobile viewport without cropping or stretching.
+
 ## Status key
 
 - Current: screenshot from the working demo

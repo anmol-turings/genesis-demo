@@ -26,6 +26,7 @@ import {
   CONVERSATION_PRIVACY_NOTICE,
   getCategory,
   getMetric,
+  isCategoryRecording,
   activeMetricIds,
   computeChallengeState,
 } from "../lib/config/challenge.mjs";
@@ -768,6 +769,7 @@ function capText(metric) {
 export function ProgramSummary({ state, challenges, onBack, onOpenSetup }) {
   const { challenge, metrics, overallPercent, targetPercent, milestones } = state;
   const past = (challenges || []).filter(c => c.status === "completed");
+  const learningRecording = isCategoryRecording("learning");
   const recorded = PROGRAM_SNAPSHOT.activityByCategory.filter(r => r.measurementType === "system_recorded");
   const reported = PROGRAM_SNAPSHOT.activityByCategory.filter(r => r.measurementType === "participant_reported");
 
@@ -836,8 +838,15 @@ export function ProgramSummary({ state, challenges, onBack, onOpenSetup }) {
         </div>
       </div>
 
-      <div className="section-label" style={{ marginTop: 18 }}>LEARNING COMPLETION BY TOPIC</div>
+      <div className="section-label" style={{ marginTop: 18 }}>
+        LEARNING COMPLETION BY TOPIC{learningRecording ? "" : " · NOT YET RECORDING"}
+      </div>
       <div className="challenge-panel">
+        {!learningRecording && (
+          <p style={{ fontSize: "0.78rem", color: "var(--silver)", lineHeight: 1.6, marginBottom: 12, fontStyle: "italic" }}>
+            {PROGRAM_SNAPSHOT.learningDataNote}
+          </p>
+        )}
         {PROGRAM_SNAPSHOT.learningByTopic.map(row => (
           <PercentRow key={row.topic} label={row.topic} percent={row.completionPercent} />
         ))}
@@ -922,13 +931,22 @@ function StatTile({ label, value, accent }) {
 }
 
 function PercentRow({ label, percent }) {
+  const missing = percent === null || percent === undefined;
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+    <div style={{ marginBottom: 10, opacity: missing ? 0.55 : 1 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 4, alignItems: "baseline" }}>
         <span style={{ fontSize: "0.84rem", color: "var(--mist)" }}>{label}</span>
-        <span className="mono" style={{ fontSize: "0.78rem", color: COHORT_LIGHT }}>{percent}%</span>
+        {missing ? (
+          <span className="mono" style={{ fontSize: "8px", letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--silver)", whiteSpace: "nowrap" }}>
+            Not yet recording
+          </span>
+        ) : (
+          <span className="mono" style={{ fontSize: "0.78rem", color: COHORT_LIGHT }}>{percent}%</span>
+        )}
       </div>
-      <Meter percent={percent} />
+      {missing
+        ? <div className="meter" style={{ opacity: 0.35 }}><div className="meter-fill" style={{ width: 0 }} /></div>
+        : <Meter percent={percent} />}
     </div>
   );
 }

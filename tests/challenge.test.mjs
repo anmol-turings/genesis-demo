@@ -27,6 +27,7 @@ import {
   computeChallengeState,
   summarizeContribution,
   metricProgress,
+  isCategoryRecording,
   overallFromPercents,
   publishChallenge,
   PROGRAM_SNAPSHOT,
@@ -389,10 +390,30 @@ test("nothing in the challenge state carries per-participant identity", () => {
   assert.ok(!/\bdemo\b/.test(serialized));
 });
 
+test("program aggregates never report a figure the build cannot record", () => {
+  // A program owner acts on these numbers. Every one of them must come
+  // from something the app can actually observe.
+  for (const row of PROGRAM_SNAPSHOT.activityByCategory) {
+    if (isCategoryRecording(row.categoryId)) {
+      assert.equal(typeof row.completionPercent, "number", `${row.categoryId} should report`);
+    } else {
+      assert.equal(row.completionPercent, null, `${row.categoryId} reports a figure it cannot measure`);
+    }
+  }
+  // Learning has no data source, so no topic may carry a percentage.
+  assert.equal(isCategoryRecording("learning"), false);
+  for (const row of PROGRAM_SNAPSHOT.learningByTopic) {
+    assert.equal(row.completionPercent, null, `${row.topic} reports unmeasured learning`);
+  }
+  assert.ok(PROGRAM_SNAPSHOT.learningDataNote, "the gap must be explained on screen");
+});
+
 test("program aggregates expose no small groups and no individuals", () => {
   assert.ok(PROGRAM_SNAPSHOT.enrolled >= PROGRAM_SNAPSHOT.minimumGroupSize);
   for (const row of PROGRAM_SNAPSHOT.activityByCategory) {
-    assert.ok(row.completionPercent >= 0 && row.completionPercent <= 100);
+    if (row.completionPercent !== null) {
+      assert.ok(row.completionPercent >= 0 && row.completionPercent <= 100);
+    }
     assert.ok(["system_recorded", "participant_reported"].includes(row.measurementType));
   }
   const serialized = JSON.stringify(PROGRAM_SNAPSHOT);

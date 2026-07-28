@@ -38,6 +38,24 @@ import {
   getRecommendedVoice,
   ARCHETYPE_VOICE_SUGGESTION,
 } from "../lib/config/voices";
+import {
+  WEEKLY_CHALLENGES,
+  publishChallenge,
+  computeChallengeState,
+  summarizeContribution,
+  recordContribution,
+  isReflectionCreditable,
+  isCheckoutCreditable,
+} from "../lib/config/challenge.mjs";
+import {
+  ChallengeReveal,
+  DashboardChallengeCard,
+  ChallengeScorecard,
+  ProgramChallengeSetup,
+  ProgramSummary,
+  ReflectionPanel,
+  ConversationCheckout,
+} from "./challenge-ui";
 
 async function fetchMentor(systemPrompt, userPrompt) {
   try {
@@ -691,6 +709,66 @@ export default function BurnoutDemo() {
   // Activities use problemId-keyed completion (analog of completedByRealm).
   const [completedByProblem, setCompletedByProblem] = useState({});
 
+  // ─── Weekly cohort challenge ─────────────────────────────────────────
+  // The ledger is the only place contributions live. Everything the
+  // scorecard, the dashboard card and the program summary display is
+  // derived from it by computeChallengeState — no parallel counters.
+  const [challengeLedger, setChallengeLedger] = useState([]);
+  // The reveal shows once per challenge cycle; the id of the last cycle a
+  // participant has seen is remembered per username.
+  const [seenChallengeId, setSeenChallengeId] = useState(null);
+  // Reflection: private text, plus whether it has been submitted in-app.
+  const [reflectionText, setReflectionText] = useState("");
+  const [reflectionSubmitted, setReflectionSubmitted] = useState(false);
+  const [reflectionCredited, setReflectionCredited] = useState(false);
+  // Conversation check-out: the app cannot see an offline conversation, so
+  // this is the only thing that turns one into a contribution.
+  const [checkout, setCheckout] = useState({ answer: null, note: "" });
+  const [checkoutSubmitted, setCheckoutSubmitted] = useState(false);
+  const [checkoutCredited, setCheckoutCredited] = useState(false);
+  // The program-owner entry is collapsed by default and lives outside the
+  // participant's actions.
+  const [showProgramEntry, setShowProgramEntry] = useState(false);
+  // The challenge list is state, not a constant, so publishing a new week
+  // from the program-owner view actually changes what everyone sees.
+  const [challenges, setChallenges] = useState(WEEKLY_CHALLENGES);
+  const activeChallenge = challenges.find(c => c.status === "active") || null;
+
+  // Program-owner draft for next week's challenge.
+  const [programDraft, setProgramDraft] = useState(() => {
+    const current = WEEKLY_CHALLENGES.find(c => c.status === "active");
+    return {
+      week: (current?.week || 0) + 1,
+      title: "Keep the shape of the week",
+      description: "The same few things, one more week.",
+      clientMetricIds: [...(current?.clientMetricIds || [])],
+      detalyticsMetricId: "conversation-checkout",
+      targetPercent: 70,
+    };
+  });
+
+  // The ledger is a cohort-wide log, so everything derived for this person
+  // is scoped by participantId.
+  const participantId = username.trim().toLowerCase() || "demo";
+  const challengeState = computeChallengeState(activeChallenge, challengeLedger, { participantId });
+  const contributionSummary = summarizeContribution(activeChallenge, challengeLedger, participantId);
+
+  // Single entry point for every challenge contribution. Caps live in the
+  // config module; this only records the attempt and reports whether it
+  // counted so the calling screen can say so honestly.
+  const emitContribution = (kind) => {
+    if (!activeChallenge) return false;
+    const res = recordContribution(challengeLedger, {
+      kind,
+      day,
+      challengeId: activeChallenge.id,
+      participantId,
+      recordedAt: null,
+    });
+    if (res.credited) setChallengeLedger(res.ledger);
+    return res.credited;
+  };
+
   // Centralized audio — singleton across all screens. See lib/AudioController.
   const audio = getAudioController();
   const mentorParsed = parseMentorMessage(mentorRaw);
@@ -904,8 +982,16 @@ export default function BurnoutDemo() {
         const last = new Date(stored);
         const days = Math.floor((today - last) / 86400000);
         if (days >= 2) setReturnTier(days <= 4 ? "soft" : days <= 14 ? "medium" : "long");
+        // Seven inactive days or more is the return metric. One private
+        // extra credit, applied once for the challenge cycle.
+        if (days >= 7) emitContribution("return_after_absence");
       }
       window.localStorage.setItem(key, new Date().toISOString().slice(0,10));
+
+      // The weekly reveal shows once per challenge cycle. A participant who
+      // has already seen this week's reveal goes straight to the dashboard.
+      const seenKey = `bd_challengeSeen_${username.toLowerCase().trim()}`;
+      setSeenChallengeId(window.localStorage.getItem(seenKey));
     }
 
     // Skip the legacy "scanning 42 apps" loader. Go straight to domain pick.
@@ -1134,6 +1220,113 @@ export default function BurnoutDemo() {
     }
   };
 
+  // ─── Weekly challenge navigation ──────────────────────────────────
+  const challengeRevealSeen =
+    !activeChallenge || seenChallengeId === activeChallenge.id;
+
+  const markChallengeSeen = () => {
+    if (!activeChallenge) return;
+    setSeenChallengeId(activeChallenge.id);
+    if (typeof window !== "undefined" && username.trim()) {
+      window.localStorage.setItem(
+        `bd_challengeSeen_${username.toLowerCase().trim()}`,
+        activeChallenge.id,
+      );
+    }
+  };
+
+  // The reveal sits between the aspirational screen and the dashboard, and
+  // only on the first entry into a challenge cycle.
+  const handleBeginRide = async () => {
+    if (audio) { audio.unlock(); audio.stop(); }
+    setIsPlaying(false);
+    if (!challengeRevealSeen) {
+      setScreen("challenge-reveal");
+      return;
+    }
+    await handleEnterDashboard();
+  };
+
+  const handleEnterChallenge = async () => {
+    markChallengeSeen();
+    await handleEnterDashboard();
+  };
+
+  // Returning to the trail. If the challenge cycle has turned over since
+  // this participant last saw a reveal — a newly published week — this is
+  // their first entry into it, so the reveal is due.
+  const backToDashboard = () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
+    setScreen(challengeRevealSeen ? "dashboard" : "challenge-reveal");
+  };
+
+  const openScorecard = () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
+    setScreen("challenge-scorecard");
+  };
+
+  const openProgramSetup = () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
+    setScreen("program-setup");
+  };
+
+  const openProgramSummary = () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
+    setScreen("program-summary");
+  };
+
+  // Publishing closes the current week at the figure it reached and makes
+  // the draft the live challenge. Contributions are keyed by challenge id,
+  // so nothing carries over — and because the cycle changed, the reveal is
+  // due again for the participant.
+  const publishDraftChallenge = () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
+    const next = publishChallenge(challenges, programDraft, {
+      closingPercent: challengeState.overallPercent,
+    });
+    setChallenges(next);
+    setSeenChallengeId(null);
+    if (typeof window !== "undefined" && username.trim()) {
+      window.localStorage.removeItem(`bd_challengeSeen_${username.toLowerCase().trim()}`);
+    }
+    setProgramDraft(d => ({ ...d, week: d.week + 1 }));
+    setScreen("program-summary");
+  };
+
+  const openReflection = () => {
+    if (audio) audio.stop();
+    setIsPlaying(false);
+    setScreen("reflection");
+  };
+
+  // A reflection counts only once a written response has been submitted in
+  // the app. The text itself never leaves this component.
+  const submitReflection = () => {
+    if (audio) audio.stop();
+    if (!isReflectionCreditable({ submitted: true, text: reflectionText })) return;
+    const credited = emitContribution("reflection");
+    setReflectionSubmitted(true);
+    setReflectionCredited(credited);
+    setHistory(h => [...h, {
+      day, quest: "Reflection", status: "done", points: 0,
+    }]);
+  };
+
+  // Only a Yes plus a submitted check-out becomes a participant-reported
+  // completion. Not yet and Prefer not to say record nothing.
+  const submitCheckout = () => {
+    if (audio) audio.stop();
+    const creditable = isCheckoutCreditable(checkout);
+    const credited = creditable ? emitContribution("conversation_checkout") : false;
+    setCheckoutSubmitted(true);
+    setCheckoutCredited(credited);
+  };
+
   // Switch the dashboard's active realm to a different problem in the
   // same domain. Pulls the mentor message + quote straight from the
   // lookup and voices them in the user's chosen voice.
@@ -1174,12 +1367,16 @@ export default function BurnoutDemo() {
   const toggleLearningNode = (nodeId) => {
     const pid = activeProblemId || diagnosis?.problemId;
     if (!pid) return;
+    const wasLit = (completedLearning[pid] || new Set()).has(nodeId);
     setCompletedLearning(prev => {
       const set = new Set(prev[pid] || []);
       if (set.has(nodeId)) set.delete(nodeId);
       else set.add(nodeId);
       return { ...prev, [pid]: set };
     });
+    // Lighting a star emits a contribution; putting one out never removes
+    // a credit that was already recorded.
+    if (!wasLit) emitContribution("learning_node");
   };
 
   // Activity completion (lookup-table driven, keyed off the currently
@@ -1198,6 +1395,9 @@ export default function BurnoutDemo() {
     setHistory(h => [...h, {
       day, quest: activity.name, status: "done", points: pts, realm: pid,
     }]);
+    // The activity itself is unchanged; it now also emits a challenge
+    // contribution. One counts per day — the rest still complete normally.
+    emitContribution("path_activity");
   };
 
   const completeQuest = async (quest, realmIdx, questIdx) => {
@@ -2060,7 +2260,88 @@ export default function BurnoutDemo() {
           </div>
         )}
 
-        <button className="btn-gold" onClick={handleEnterDashboard}>BEGIN →</button>
+        <button className="btn-gold" onClick={handleBeginRide}>BEGIN →</button>
+      </div>
+    );
+  }
+
+  // ─── WEEKLY CHALLENGE REVEAL — once per challenge cycle ────────────
+  if (screen === "challenge-reveal") {
+    return <ChallengeReveal state={challengeState} onEnter={handleEnterChallenge} />;
+  }
+
+  // ─── SHARED COHORT CHALLENGE SCORECARD ─────────────────────────────
+  if (screen === "challenge-scorecard") {
+    return <ChallengeScorecard state={challengeState} onBack={backToDashboard} />;
+  }
+
+  // ─── PROGRAM CHALLENGE SETUP (program-owner view) ──────────────────
+  if (screen === "program-setup") {
+    return (
+      <ProgramChallengeSetup
+        draft={programDraft}
+        onChange={setProgramDraft}
+        onPublish={publishDraftChallenge}
+        onBack={backToDashboard}
+        onOpenSummary={openProgramSummary}
+      />
+    );
+  }
+
+  // ─── PROGRAM AGGREGATE SUMMARY (program-owner view) ────────────────
+  if (screen === "program-summary") {
+    return (
+      <ProgramSummary
+        state={challengeState}
+        challenges={challenges}
+        onBack={backToDashboard}
+        onOpenSetup={openProgramSetup}
+      />
+    );
+  }
+
+  // ─── REFLECTION — private, in-app, counted only on submission ──────
+  if (screen === "reflection") {
+    return (
+      <div className="shell" style={{ padding: "2rem 1.6rem 2rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div className="section-label" style={{ marginBottom: 0 }}>A REFLECTION</div>
+          <span
+            onClick={backToDashboard}
+            style={{
+              cursor: "pointer", padding: "4px 10px",
+              border: "1px solid rgba(255,255,255,0.08)",
+              fontSize: "0.65rem", color: "var(--silver)",
+              fontFamily: "'Space Mono', monospace",
+              letterSpacing: "0.15em", textTransform: "uppercase",
+            }}
+          >
+            ← BACK TO THE TRAIL
+          </span>
+        </div>
+
+        <h2 className="serif" style={{ fontSize: "1.5rem", color: "var(--cream)", lineHeight: 1.3, marginBottom: 8 }}>
+          Say one true thing about the week.
+        </h2>
+        <p className="serif" style={{ fontSize: "0.95rem", fontStyle: "italic", color: "var(--silver)", lineHeight: 1.6, marginBottom: 4 }}>
+          {archetype ? `${archetype.name} will not read this. Nobody will.` : "Nobody will read this."}
+        </p>
+
+        <ReflectionPanel
+          text={reflectionText}
+          onChangeText={setReflectionText}
+          onSubmit={submitReflection}
+          submitted={reflectionSubmitted}
+          credited={reflectionCredited}
+          countsThisWeek={!!contributionSummary.find(s => s.kind === "reflection")?.countsThisWeek}
+          archetypeColor={archetype?.color || "var(--gold)"}
+        />
+
+        {reflectionSubmitted && (
+          <button className="btn-ghost" style={{ marginTop: 16, width: "100%" }} onClick={backToDashboard}>
+            BACK TO THE TRAIL
+          </button>
+        )}
       </div>
     );
   }
@@ -2132,6 +2413,18 @@ export default function BurnoutDemo() {
             {muted ? "🔇" : "🔊"}
           </span>
         </div>
+
+        {/* THIS WEEK'S CHALLENGE — shared cohort progress, private
+            contribution, three from the Path. Sits above the hero so it is
+            the first thing after the header. */}
+        {activeChallenge && (
+          <DashboardChallengeCard
+            state={challengeState}
+            summary={contributionSummary}
+            recommended={activities.slice(0, 3)}
+            onOpenScorecard={openScorecard}
+          />
+        )}
 
         {/* THE ONE HERO ANIMATION — signature scene for the active problem */}
         {heroSceneId && (
@@ -2291,9 +2584,14 @@ export default function BurnoutDemo() {
         )}
 
         {/* Actions */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           <button className="btn-gold" onClick={nextDay} style={{ flex: 1 }}>RIDE ON →</button>
           <button className="btn-ghost" onClick={openShadowEncounter} style={{ flex: 1 }}>THE CONVERSATION</button>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <button className="btn-ghost" onClick={openReflection} style={{ flex: 1 }}>
+            {reflectionSubmitted ? "REFLECTION RECORDED" : "A REFLECTION"}
+          </button>
         </div>
 
         {/* Compressed score + progression */}
@@ -2371,6 +2669,42 @@ export default function BurnoutDemo() {
         )}
 
         <SafetyNote showBoundary />
+
+        {/* Program-owner surfaces. Not a participant action — in a real
+            deployment these live behind a separate program-owner login, and
+            a participant would never see this block at all. It sits below
+            the safety note, outside the journey, behind a disclosure. */}
+        <div style={{ marginTop: 26, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <button
+            onClick={() => setShowProgramEntry(v => !v)}
+            className="mono"
+            style={{
+              background: "transparent", border: "none", padding: 0,
+              color: "rgba(255,255,255,0.32)", fontSize: "8px",
+              letterSpacing: "0.24em", textTransform: "uppercase",
+              cursor: "pointer",
+            }}
+          >
+            {showProgramEntry ? "▲" : "▼"} Demo · program-owner view
+          </button>
+
+          {showProgramEntry && (
+            <div className="animate-fadeUp" style={{ marginTop: 10 }}>
+              <p style={{ fontSize: "0.74rem", color: "var(--silver)", lineHeight: 1.55, marginBottom: 10 }}>
+                Separate role. Behind its own login in a real deployment, and
+                aggregate-only — no participant sees these screens.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="btn-ghost" onClick={openProgramSetup} style={{ flex: 1, minWidth: 150 }}>
+                  CHALLENGE SETUP
+                </button>
+                <button className="btn-ghost" onClick={openProgramSummary} style={{ flex: 1, minWidth: 150 }}>
+                  PROGRAM SUMMARY
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
       </div>
     );
@@ -2452,6 +2786,19 @@ export default function BurnoutDemo() {
               )}
             </div>
           </div>
+        )}
+
+        {/* The check-out. The app cannot see a conversation held away from
+            it, so nothing counts until the participant says it happened. */}
+        {shadowReplyRaw && (
+          <ConversationCheckout
+            checkout={checkout}
+            onChange={setCheckout}
+            onSubmit={submitCheckout}
+            submitted={checkoutSubmitted}
+            credited={checkoutCredited}
+            countsThisWeek={!!contributionSummary.find(s => s.kind === "conversation_checkout")?.countsThisWeek}
+          />
         )}
 
         {shadowReplyRaw && (

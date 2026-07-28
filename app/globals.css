@@ -13,6 +13,12 @@
   --gold-light: #e8c97a;
   --gold-dim: #7a6230;
   --shadow-red: #8b3a3a;
+  /* Cohort challenge accent — restrained blue, one step off the gold so a
+     shared surface reads as shared without leaving The Ride. */
+  --cohort: #5f86b8;
+  --cohort-light: #8fb0d8;
+  --cohort-dim: #33506f;
+  --cohort-wash: rgba(95,134,184,0.08);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -187,4 +193,113 @@ body {
 
 .load-check.done { background: var(--gold); color: var(--void); border-color: var(--gold); }
 .load-check.loading { animation: loadingPulse 1s infinite; }
+
+/* ── cohort challenge surfaces ─────────────────────────────────────────
+   Same cards, same rules, same typography as the rest of the demo. The
+   only new thing is the blue accent and a meter that can carry a target
+   marker. */
+
+.challenge-card {
+  padding: 1.1rem 1.2rem;
+  background: var(--deep);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-left: 2px solid var(--cohort);
+}
+
+.challenge-panel {
+  padding: 1rem 1.1rem;
+  background: var(--deep);
+  border: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 10px;
+}
+
+.cohort-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.meter {
+  position: relative;
+  height: 6px;
+  background: var(--charcoal);
+  overflow: visible;
+}
+.meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cohort-dim), var(--cohort-light));
+  transition: width 0.8s ease;
+}
+.meter-target {
+  position: absolute;
+  top: -4px;
+  width: 1px;
+  height: 14px;
+  background: var(--gold);
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.tag-client     { color: var(--cohort-light); background: var(--cohort-wash); }
+.tag-detalytics { color: var(--gold);         background: rgba(201,168,76,0.08); }
+.tag-recorded   { color: var(--silver);       background: rgba(255,255,255,0.03); }
+.tag-reported   { color: var(--gold-light);   background: rgba(201,168,76,0.06); }
+
+.privacy-note {
+  padding: 0.75rem 0.95rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.02);
+  font-size: 0.74rem;
+  color: var(--silver);
+  line-height: 1.6;
+}
+
+.checkout-option {
+  flex: 1;
+  min-width: 96px;
+  padding: 10px 12px;
+  background: var(--deep);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--silver);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.checkout-option[data-selected="true"] {
+  border-color: var(--cohort);
+  color: var(--cohort-light);
+  background: var(--cohort-wash);
+}
+
+.private-field {
+  width: 100%;
+  min-height: 96px;
+  padding: 12px 14px;
+  background: var(--slate);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--cream);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+}
+.private-field:focus { border-color: var(--cohort); }
+.private-field::placeholder { color: var(--silver); opacity: 0.45; }
+
+@media (max-width: 420px) {
+  .cohort-grid { grid-template-columns: 1fr; }
+}
 

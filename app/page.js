@@ -31,6 +31,9 @@ import {
   getJourney,
   getQuoteTags,
   getLearning,
+  ASSESSMENT_PROFILES,
+  ASSESSMENT_ROUTE_LABELS,
+  getAssessmentProfile,
 } from "../lib/config/onboarding";
 import {
   VOICES,
@@ -238,8 +241,34 @@ function SafetyNote({ showBoundary }) {
       <p style={{ margin: 0 }}>
         If you are in severe distress, having thoughts of self-harm, or finding it
         hard to function day to day, please reach out to a doctor or mental health
-        professional now. In an emergency, call your local emergency number.
-        In Singapore: SOS at 1767 (24 hours).
+        professional now. In an emergency, contact your local emergency services or
+        go to the nearest emergency department.
+      </p>
+    </div>
+  );
+}
+
+function SupportSignpost({ participantContext }) {
+  const isMinor = participantContext?.ageBand === "15-17";
+  return (
+    <div style={{
+      marginTop: 20,
+      padding: "1rem 1.1rem",
+      border: "1px solid rgba(117,169,209,0.35)",
+      background: "rgba(117,169,209,0.07)",
+      fontSize: "0.82rem",
+      color: "var(--silver)",
+      lineHeight: 1.65,
+    }}>
+      <p style={{ margin: 0, marginBottom: 7, color: "var(--cream)", fontWeight: 600 }}>
+        A little more support may help
+      </p>
+      <p style={{ margin: 0 }}>
+        Some of what you are describing might be worth talking through with someone.
+        {isMinor
+          ? " Consider speaking with a trusted adult, school counsellor, doctor, or another qualified professional."
+          : " Consider speaking with your university counselling service, a doctor, or another qualified professional."}
+        {" "}This is a private signpost, not a diagnosis.
       </p>
     </div>
   );
@@ -641,6 +670,7 @@ export default function BurnoutDemo() {
   const [persona, setPersona] = useState(null);
   const [profile, setProfile] = useState(null);
   const [userName, setUserName] = useState("");
+  const [participantContext, setParticipantContext] = useState(null);
 
   const [loadedCategories, setLoadedCategories] = useState(0);
   const [loadingCategoryIdx, setLoadingCategoryIdx] = useState(-1);
@@ -994,14 +1024,16 @@ export default function BurnoutDemo() {
       setSeenChallengeId(window.localStorage.getItem(seenKey));
     }
 
-    // Skip the legacy "scanning 42 apps" loader. Go straight to domain pick.
+    // Skip the legacy "scanning 42 apps" loader. Capture the small amount of
+    // context needed for age-appropriate relationship and study/work wording.
+    setParticipantContext(null);
     setSelectedDomain(null);
     setScenarioIdx(0);
     setScenarioAnswers([]);
     setDiagnosis(null);
     setShowOtherMentors(false);
     setShowOtherTones(false);
-    setScreen("domain-pick");
+    setScreen("participant-context");
   };
 
   useEffect(() => {
@@ -1018,6 +1050,17 @@ export default function BurnoutDemo() {
   }, [screen, loadingCategoryIdx]);
 
   // ─── Onboarding v2 handlers ────────────────────────────────────────
+  const handleParticipantContext = (profileId) => {
+    if (audio) {
+      audio.stop();
+      audio.unlock();
+    }
+    const nextContext = getAssessmentProfile(profileId);
+    if (!nextContext) return;
+    setParticipantContext(nextContext);
+    setScreen("domain-pick");
+  };
+
   const handleDomainPick = (domainId) => {
     if (audio) audio.unlock();
     setSelectedDomain(domainId);
@@ -1037,7 +1080,7 @@ export default function BurnoutDemo() {
 
   const handleScenarioAnswer = (optionIndex) => {
     if (audio) audio.unlock();
-    const questions = getQuestions(selectedDomain, selectedIntent);
+    const questions = getQuestions(selectedDomain, selectedIntent, participantContext);
     const newAnswers = [
       ...scenarioAnswers,
       { questionIndex: scenarioIdx, optionIndex },
@@ -1051,19 +1094,41 @@ export default function BurnoutDemo() {
 
     // Diagnose. The v2 diagnose() returns { destinationId, intent, ... }.
     // The rest of the app still reads `diagnosis.problemId`, so we alias
-    // destinationId → problemId on the way out. If the user opted out of
-    // every question, fall back to the first Manage destination so the
-    // reveal screen isn't blank.
-    const diag = diagnose(selectedDomain, selectedIntent, newAnswers);
-    const destinationId =
-      diag?.destinationId ??
-      getDestinations(selectedDomain, 'manage')[0]?.id ??
-      null;
-    const wrapped = diag
-      ? { ...diag, problemId: destinationId }
-      : { problemId: destinationId, destinationId, intent: selectedIntent, score: 0, runnerUpId: null, runnerUpScore: 0, tally: {} };
+    // destinationId → problemId on the way out. Neutral answers and exact
+    // ties move to an explicit participant choice instead of a hidden fallback.
+    const diag = diagnose(selectedDomain, selectedIntent, newAnswers, participantContext);
+    const destinationId = diag?.destinationId ?? null;
+    const wrapped = {
+      ...(diag ?? {}),
+      problemId: destinationId,
+      destinationId,
+      intent: diag?.intent ?? selectedIntent,
+      score: diag?.score ?? 0,
+      runnerUpId: diag?.runnerUpId ?? null,
+      runnerUpScore: diag?.runnerUpScore ?? 0,
+      tally: diag?.tally ?? {},
+      needsChoice: diag?.needsChoice ?? true,
+    };
     setDiagnosis(wrapped);
     if (destinationId) setActiveProblemId(destinationId);
+    setScreen(wrapped.needsChoice ? "starting-point-pick" : "problem-reveal");
+  };
+
+  const handleStartingPointPick = (destinationId) => {
+    if (audio) {
+      audio.stop();
+      audio.unlock();
+    }
+    const destination = getProblem(selectedDomain, destinationId);
+    if (!destination) return;
+    setDiagnosis((current) => ({
+      ...(current ?? {}),
+      problemId: destinationId,
+      destinationId,
+      intent: destination.intent ?? selectedIntent,
+      needsChoice: false,
+    }));
+    setActiveProblemId(destinationId);
     setScreen("problem-reveal");
   };
 
@@ -1509,9 +1574,52 @@ export default function BurnoutDemo() {
     );
   }
 
+  // ─── PARTICIPANT CONTEXT ──────────────────────────────────────────
+  // One lightweight choice supplies the age and study/work variants in
+  // the Saudi student assessment. No score is attached to this selection.
+  if (screen === "participant-context") {
+    return (
+      <div className="shell" style={{ padding: "2.75rem 2rem" }}>
+        <div className="section-label">ABOUT THIS PARTICIPANT</div>
+        <h2 className="serif" style={{ fontSize: "1.95rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.25 }}>
+          Which description fits best?
+        </h2>
+        <p style={{ fontSize: "1rem", color: "var(--silver)", lineHeight: 1.6, marginBottom: 26 }}>
+          This only adjusts the wording of the questions. It does not affect points or cohort progress.
+        </p>
+
+        {ASSESSMENT_PROFILES.map((context) => (
+          <button
+            key={context.id}
+            onClick={() => handleParticipantContext(context.id)}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              padding: "1.3rem 1.4rem",
+              marginBottom: 12,
+              background: "var(--deep)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              color: "inherit",
+            }}
+          >
+            <div className="serif" style={{ fontSize: "1.25rem", color: "var(--cream)", marginBottom: 5 }}>
+              {context.title}
+            </div>
+            <div className="mono" style={{ fontSize: "9px", letterSpacing: "0.16em", color: "var(--silver)", textTransform: "uppercase" }}>
+              {context.detail}
+            </div>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   // ─── DOMAIN PICK (onboarding v2 step 1) ────────────────────────────
   if (screen === "domain-pick") {
-    const domains = getDomainList();
+    const domains = getDomainList(participantContext);
     return (
       <div className="shell" style={{ padding: "2.75rem 2rem" }}>
         <div className="section-label">FIRST QUESTION</div>
@@ -1567,7 +1675,7 @@ export default function BurnoutDemo() {
   // ─── DOMAIN PATH CHOICE (specific vs discovery) ────────────────────
   // ─── INTENT PICK (assess / manage / optimize) ──────────────────────
   if (screen === "intent-pick") {
-    const domain = getDomain(selectedDomain);
+    const domain = getDomain(selectedDomain, participantContext);
     const intents = getIntents(selectedDomain);
     if (!domain || !intents.length) return null;
 
@@ -1576,13 +1684,6 @@ export default function BurnoutDemo() {
       manage:   "#7f1d1d",
       optimize: "#14532d",
     };
-    // Display-only labels — internal tier ids stay assess/manage/optimize.
-    const tierLabels = {
-      assess:   "Take Stock",
-      manage:   "Steady What’s Strained",
-      optimize: "Build What’s Next",
-    };
-
     return (
       <div className="shell" style={{ padding: "2.75rem 2rem" }}>
         <div className="section-label">{domain.name.toUpperCase()}</div>
@@ -1624,7 +1725,7 @@ export default function BurnoutDemo() {
                 marginBottom: 8,
               }}
             >
-              {tierLabels[intent.tier] || intent.tier}
+              {ASSESSMENT_ROUTE_LABELS[intent.tier] || intent.tier}
             </div>
             <div className="serif" style={{ fontSize: "1.3rem", color: "var(--cream)", marginBottom: 6, lineHeight: 1.3 }}>
               {intent.name}
@@ -1657,9 +1758,9 @@ export default function BurnoutDemo() {
 
   // ─── SCENARIO QUESTIONS (intent-driven) ────────────────────────────
   if (screen === "scenario") {
-    const questions = getQuestions(selectedDomain, selectedIntent);
+    const questions = getQuestions(selectedDomain, selectedIntent, participantContext);
     const q = questions[scenarioIdx];
-    const domain = getDomain(selectedDomain);
+    const domain = getDomain(selectedDomain, participantContext);
     const total = questions.length;
     if (!q || !domain) return null;
     return (
@@ -1704,6 +1805,60 @@ export default function BurnoutDemo() {
             </button>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // ─── NO SINGLE STARTING POINT / TIED ROUTE ─────────────────────────
+  // Neutral answers and exact ties are not silently forced into the first
+  // realm. The participant makes the final, transparent choice.
+  if (screen === "starting-point-pick") {
+    const allChoices = selectedIntent === "assess"
+      ? getAllProblems(selectedDomain)
+      : getDestinations(selectedDomain, selectedIntent);
+    const scores = diagnosis?.tally ?? {};
+    const highestScore = Math.max(0, ...Object.values(scores));
+    const choices = highestScore > 0
+      ? allChoices.filter((choice) => scores[choice.id] === highestScore)
+      : allChoices;
+
+    return (
+      <div className="shell" style={{ padding: "2.75rem 2rem" }}>
+        <div className="section-label">YOUR CHOICE</div>
+        <h2 className="serif" style={{ fontSize: "1.85rem", color: "var(--cream)", marginBottom: 12, lineHeight: 1.3 }}>
+          There is more than one useful place to begin.
+        </h2>
+        <p style={{ fontSize: "1rem", color: "var(--silver)", lineHeight: 1.6, marginBottom: 24 }}>
+          Your answers did not point clearly to one starting place. Choose the one that feels most useful now.
+        </p>
+
+        {choices.map((choice) => (
+          <button
+            key={choice.id}
+            onClick={() => handleStartingPointPick(choice.id)}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "left",
+              padding: "1.25rem 1.35rem",
+              marginBottom: 12,
+              background: "var(--deep)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              color: "inherit",
+            }}
+          >
+            <div className="serif" style={{ fontSize: "1.2rem", color: "var(--cream)", marginBottom: 5 }}>
+              {choice.name}
+            </div>
+            <div style={{ fontSize: "0.88rem", color: "var(--silver)", lineHeight: 1.5 }}>
+              {choice.desc}
+            </div>
+          </button>
+        ))}
+        {diagnosis?.supportSuggested && <SupportSignpost participantContext={participantContext} />}
+        <SafetyNote showBoundary />
       </div>
     );
   }
@@ -1770,7 +1925,11 @@ export default function BurnoutDemo() {
           </p>
         )}
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        {diagnosis?.supportSuggested && (
+          <SupportSignpost participantContext={participantContext} />
+        )}
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: diagnosis?.supportSuggested ? 20 : 0 }}>
           <button className="btn-gold" onClick={handleAcceptProblem}>
             BEGIN THE RIDE →
           </button>
@@ -2459,7 +2618,7 @@ export default function BurnoutDemo() {
                   padding: 0,
                 }}
               >
-                ▼  Explore other realms in {getDomain(selectedDomain)?.name || ""}
+                ▼  Explore other realms in {getDomain(selectedDomain, participantContext)?.name || ""}
               </button>
             )}
 
